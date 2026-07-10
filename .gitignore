@@ -1,0 +1,13 @@
+# Node
+node_modules/
+
+# Remotion render output
+renderer/out/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS
+.DS_Store
