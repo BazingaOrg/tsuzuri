@@ -32,6 +32,8 @@
 - M4 验收剩余:用中/日/英各一首真实歌曲验证(需要用户素材);demucs 未实测(需 `uv sync --extra separation` + 一首人声弱的歌)。
 - M5 剩余:快闪/裁剪阈值用真实素材调优;examples 目前只有生成的 fixture,可补一组真实示例照片 + 无版权音乐。
 - Whisper 模型可用 `TSUZURI_WHISPER_MODEL=tiny|small|medium` 临时覆盖(调试用)。
+- Review 遗留(advisory,未修):吸附无距离上限(候选极稀时会吸到很远的拍点,DP 升级时一并解决);EXIF 排序是全有全无策略;信息条(INFO_BAR)常量已定义但渲染未实现(默认关,M6);HF 连通性探测用 urllib,SOCKS-only 环境会误切镜像(镜像可用,无害)。
+- beat_alloc 约束优先级:所有间隔约束 > 切换点数量,塞不下时丢弃尾部照片(2026-07-10 review 修复了回退分支违反 min_gap 的 bug)。
 - 本机环境有 SOCKS 代理,已加 `httpx[socks]` 依赖(顺带惠及代理用户)。
 
 ## 环境

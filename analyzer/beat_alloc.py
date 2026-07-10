@@ -59,12 +59,13 @@ def allocate_switch_points(
             used_idx = best
             prev = usable[best]
         else:
-            # 候选耗尽:回退到未吸附时间,尽量贴近理想网格
-            t = min(max(ideal, lower), duration - min_gap)
-            if t <= prev + 1e-9:
-                t = prev + min_gap
+            # 候选耗尽:回退到未吸附时间,尽量贴近理想网格。
+            # lower 保证与前点间隔 >= min_gap;超出尾部空间则停止分配,
+            # 剩余照片由 plan 层丢弃(所有约束优先于数量)。
+            t = max(ideal, lower)
+            if t > duration - min_gap:
+                break
             result.append(t)
             prev = t
 
-    # 尾部保护:回退分支可能溢出 duration,裁掉不合法的点
-    return [t for t in result if t < duration]
+    return result

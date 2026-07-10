@@ -44,22 +44,17 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
       t <= l.end + SUBTITLE.fadeOutDuration + 1 / fps,
   );
 
-  // 收尾:音频末尾 1.5s 淡出,画面同步淡至白
+  // 收尾:音频末尾 1.5s 淡出,画面同步淡至白。
+  // 下界钳到 0,防止短于 1.5s 的合成从首帧就开始泛白/压音量
   const fadeFrames = Math.round(ANIMATION.endingFadeDuration * fps);
-  const whiteFade = interpolate(
-    frame,
-    [durationInFrames - fadeFrames, durationInFrames - 1],
-    [0, 1],
-    clamp,
-  );
+  const fadeStart = Math.max(0, durationInFrames - fadeFrames);
+  const whiteFade = interpolate(frame, [fadeStart, durationInFrames - 1], [0, 1], clamp);
 
   return (
     <AbsoluteFill style={{backgroundColor: meta.background}}>
       <Audio
         src={staticFile(meta.audio.replace(/^\.\//, ''))}
-        volume={(f) =>
-          interpolate(f, [durationInFrames - fadeFrames, durationInFrames - 1], [1, 0], clamp)
-        }
+        volume={(f) => interpolate(f, [fadeStart, durationInFrames - 1], [1, 0], clamp)}
       />
       {visiblePhotos.map((p) => {
         const i = photos.indexOf(p);
@@ -73,8 +68,8 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
           />
         );
       })}
-      {visibleSubtitles.map((l, i) => (
-        <Subtitle key={`${l.start}-${i}`} line={l} scale={scale} />
+      {visibleSubtitles.map((l) => (
+        <Subtitle key={`${l.start}-${l.text}`} line={l} scale={scale} />
       ))}
       {whiteFade > 0 ? (
         <AbsoluteFill style={{backgroundColor: meta.background, opacity: whiteFade}} />

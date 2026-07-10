@@ -84,11 +84,27 @@ class TestFallback:
         assert is_strictly_increasing(result)
         assert min_gap_of(result, 30.0) >= 2.0 - 1e-9
 
+    def test_fallback_after_tail_candidate_keeps_min_gap(self):
+        # 回归:唯一候选吸附在尾部(27.5),下一个理想点走回退分支,
+        # 旧实现会挤出 0.5s 间隔;现在必须保持 min_gap 或直接放弃该点
+        result = allocate_switch_points(30.0, 3, [27.5])
+        assert min_gap_of(result, 30.0) >= 2.0 - 1e-9
+
     def test_extreme_mismatch_may_drop_points(self):
         # 10s 塞 10 张(min_gap 2s)必然放不下 9 个切换点
         result = allocate_switch_points(10.0, 10, [])
         assert is_strictly_increasing(result)
         assert all(t < 10.0 for t in result)
+        assert min_gap_of(result, 10.0) >= 2.0 - 1e-9
+
+    def test_duration_shorter_than_two_gaps_drops_switch(self):
+        # 3s 放不下任何满足 min_gap=2 的切换点:宁可少切,不违反约束
+        assert allocate_switch_points(3.0, 2, [], min_gap=2.0) == []
+
+    def test_not_before_near_end_never_violated(self):
+        # 强 onset 落在结尾 min_gap 内:与其在 onset 前切换,不如放弃该切换点
+        result = allocate_switch_points(30.0, 2, [], not_before=29.5)
+        assert all(t >= 29.5 for t in result)  # 实际应为空
 
 
 class TestValidation:

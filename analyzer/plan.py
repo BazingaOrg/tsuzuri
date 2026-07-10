@@ -35,7 +35,11 @@ DEFAULTS = {
     "flash_min_gap": 0.8,
     "trim_avg_threshold": 10.0,  # 人均展示超过此值 → 裁剪音频
     "trim_target_avg": 8.0,      # 裁剪目标:人均展示秒数
+    "subtitles": True,           # 字幕轨总开关
 }
+
+# 属于其他阶段的合法配置键,plan 不消费但不该告警
+FOREIGN_KEYS = {"demucs"}
 
 DATETIME_ORIGINAL = next(k for k, v in ExifTags.TAGS.items() if v == "DateTimeOriginal")
 
@@ -46,7 +50,7 @@ def load_config(folder: Path) -> dict:
     if toml_path.is_file():
         with toml_path.open("rb") as f:
             user = tomllib.load(f)
-        unknown = set(user) - set(DEFAULTS)
+        unknown = set(user) - set(DEFAULTS) - FOREIGN_KEYS
         if unknown:
             print(f"warning: tsuzuri.toml 中未知配置项被忽略: {sorted(unknown)}", file=sys.stderr)
         cfg.update({k: v for k, v in user.items() if k in DEFAULTS})
@@ -113,9 +117,14 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     else:
         candidates, min_gap = beats["downbeats"], cfg["min_gap"]
 
+    # 首个切换点避开前奏,但最多让出一个网格槽位:
+    # 强 onset 阈值在响度起伏大的歌里可能落到很晚,不设上限会把全部照片挤进后段
+    # (牺牲整体节奏比前奏内多切一刀更伤,取更安全的失败方式)
+    not_before = min(float(beats.get("first_strong_onset", 0.0)), duration / n)
+
     switches = allocate_switch_points(
         duration, n, candidates,
-        min_gap=min_gap, not_before=float(beats.get("first_strong_onset", 0.0)),
+        min_gap=min_gap, not_before=not_before,
     )
     if len(switches) < n - 1:
         dropped = n - 1 - len(switches)
@@ -184,7 +193,12 @@ def main(argv: list[str] | None = None) -> int:
     if lyrics_path.is_file():
         lyrics = json.loads(lyrics_path.read_text(encoding="utf-8")).get("segments", [])
 
-    timeline = build_timeline(folder, beats, lyrics, load_config(folder), args.input_hash)
+    cfg = load_config(folder)
+    if not cfg["subtitles"] and lyrics:
+        print("subtitles: 已按 tsuzuri.toml 关闭字幕轨")
+        lyrics = []
+
+    timeline = build_timeline(folder, beats, lyrics, cfg, args.input_hash)
 
     out = args.output or folder / "timeline.json"
     out.write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
