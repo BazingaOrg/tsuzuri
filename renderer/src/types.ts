@@ -1,5 +1,5 @@
 export type TransitionSpec = {
-  type: 'crossfade' | 'cut' | 'none';
+  type: 'album' | 'crossfade' | 'cut' | 'none';
   duration: number; // seconds; cut/none 为 0
 };
 

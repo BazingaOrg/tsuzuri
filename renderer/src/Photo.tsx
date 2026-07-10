@@ -22,8 +22,9 @@ export const Photo: React.FC<{
   const {fps} = useVideoConfig();
   const t = frame / fps;
 
-  const dIn = clip.transition.type === 'crossfade' ? clip.transition.duration : 0;
-  const dOut = nextTransition?.type === 'crossfade' ? nextTransition.duration : 0;
+  const isFade = (ty?: string) => ty === 'crossfade' || ty === 'album';
+  const dIn = isFade(clip.transition.type) ? clip.transition.duration : 0;
+  const dOut = isFade(nextTransition?.type) ? (nextTransition?.duration ?? 0) : 0;
 
   const fadeIn =
     dIn > 0
@@ -45,21 +46,32 @@ export const Photo: React.FC<{
       ? interpolate(t, [clip.start, clip.end], [clip.motion.from, clip.motion.to], clamp)
       : 1;
 
-  // 进场落定:crossfade 期间 1.02 → 1.00;cut 硬切后 1.045 → 1.00 快速回弹(切换感)
+  // 进出场缩放:
+  // album —— 进场 0.95 → 1.00 放大浮现(easeOut,无过冲),出场微缩到 0.97 退去;
+  // crossfade —— 保留旧语义 1.02 → 1.00 落定;cut —— 纯硬切,无附加动画
   let enter = 1;
-  if (dIn > 0) {
+  if (clip.transition.type === 'album' && dIn > 0) {
+    enter = interpolate(
+      t,
+      [clip.start - dIn / 2, clip.start + dIn / 2],
+      [ANIMATION.albumEnterFrom, 1],
+      {...clamp, easing: Easing.out(Easing.cubic)},
+    );
+  } else if (clip.transition.type === 'crossfade' && dIn > 0) {
     enter = interpolate(
       t,
       [clip.start - dIn / 2, clip.start + dIn / 2],
       [ANIMATION.enterScaleFrom, 1],
       clamp,
     );
-  } else if (clip.transition.type === 'cut') {
-    enter = interpolate(
+  }
+  let exit = 1;
+  if (nextTransition?.type === 'album' && dOut > 0) {
+    exit = interpolate(
       t,
-      [clip.start, clip.start + ANIMATION.cutSettleDuration],
-      [ANIMATION.cutScaleFrom, 1],
-      {...clamp, easing: Easing.out(Easing.cubic)},
+      [clip.end - dOut / 2, clip.end + dOut / 2],
+      [1, ANIMATION.albumExitTo],
+      {...clamp, easing: Easing.in(Easing.cubic)},
     );
   }
 
@@ -79,7 +91,7 @@ export const Photo: React.FC<{
           width: 'auto',
           height: 'auto',
           boxShadow: PHOTO.shadow, // 阴影挂在 img 上,随 transform 同步缩放
-          transform: `scale(${kenburns * enter})`,
+          transform: `scale(${kenburns * enter * exit})`,
         }}
       />
     </AbsoluteFill>

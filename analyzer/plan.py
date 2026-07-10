@@ -29,8 +29,9 @@ DEFAULTS = {
     "background": "#FFFFFF",
     "photo_scale": 0.8,
     "min_gap": 2.0,
-    "transition": "cut",      # cut(硬切踩拍,默认)| crossfade(交叉淡化)
+    "transition": "album",    # album(Apple Music 切歌感,默认)| cut(纯硬切)| crossfade
     "motion": "none",         # none(静止,默认)| kenburns(缓慢推近)
+    "album_fade": 0.4,
     "crossfade": 0.6,
     "kenburns_from": 1.0,
     "kenburns_to": 1.035,
@@ -140,8 +141,10 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
 
     if cfg["transition"] == "crossfade":
         later_transition = {"type": "crossfade", "duration": cfg["crossfade"]}
-    else:
+    elif cfg["transition"] == "cut":
         later_transition = {"type": "cut", "duration": 0}
+    else:
+        later_transition = {"type": "album", "duration": cfg["album_fade"]}
     if cfg["motion"] == "kenburns":
         motion = {"type": "kenburns", "from": cfg["kenburns_from"], "to": cfg["kenburns_to"]}
     else:

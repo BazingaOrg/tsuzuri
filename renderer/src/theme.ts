@@ -17,18 +17,21 @@ export const PHOTO = {
 } as const;
 
 export const SUBTITLE = {
-  fontSize: 40, // ≈ 画面高度 3.7%
-  color: '#3D3D3A', // 墨灰
-  baselineFromBottom: 34, // 基线距底边
-  // Noto Serif 系 descender ≈ 0.29em;用于把"基线距底 34px"换算为盒模型 bottom 值
-  descentRatio: 0.29,
+  // 2026-07-10 修订:Apple Music 歌词感 —— 更大字重、带状区域垂直居中、模糊消散动效
+  fontSize: 44, // ≈ 画面高度 4.1%
+  fontWeight: 600, // 半粗,变量字体直接支持
+  color: '#2E2E2B', // 深墨
   letterSpacing: '0.18em',
   letterSpacingCompact: '0.08em', // 单行超过约 18 个全角字符时回退
   compactThreshold: 18, // 全角字符等效数
   confidenceThreshold: 0.6, // Whisper 段置信度低于此值不渲染
-  fadeInDuration: 0.4, // 秒,淡入 + 上浮
+  // 进场:淡入 + 上浮 + 模糊聚焦;退场:淡出 + 继续上行 + 化雾(Apple 歌词行语言)
+  fadeInDuration: 0.45,
   fadeOutDuration: 0.3,
-  riseDistance: 8, // px,上浮距离
+  riseDistance: 16, // px,进场上浮
+  exitRise: 12, // px,退场继续上行
+  blurIn: 10, // px,进场起始模糊
+  blurOut: 6, // px,退场终点模糊
 } as const;
 
 export const INFO_BAR = {
@@ -40,8 +43,9 @@ export const INFO_BAR = {
 export const ANIMATION = {
   crossfadeDuration: 0.6, // 秒;淡化中点对齐节拍点
   enterScaleFrom: 1.02, // crossfade 进场 scale 1.02 → 1.00 落定
-  cutScaleFrom: 1.045, // cut 硬切进场的落定回弹幅度
-  cutSettleDuration: 0.28, // 秒;回弹落定时长(easeOut)
+  // album(默认):Apple Music 切歌感 —— 进场 0.95 放大浮现,出场微缩退去,无过冲
+  albumEnterFrom: 0.95,
+  albumExitTo: 0.97,
   kenburnsFrom: 1.0,
   kenburnsTo: 1.035,
   endingFadeDuration: 1.5, // 秒;音频淡出 + 画面淡至白

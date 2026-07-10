@@ -1,9 +1,10 @@
 import React from 'react';
-import {interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import {Easing, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {FONT_FAMILY, SUBTITLE} from './theme';
 import type {SubtitleLine} from './types';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
+const easeOut = {...clamp, easing: Easing.out(Easing.cubic)} as const;
 
 const KANA_RE = /[぀-ヿ]/; // ひらがな + カタカナ
 const CJK_RE = /[㐀-䶿一-鿿豈-﫿]/;
@@ -31,20 +32,28 @@ export const fullwidthLength = (text: string): number => {
   return n;
 };
 
-export const Subtitle: React.FC<{line: SubtitleLine; scale: number}> = ({line, scale}) => {
+export const Subtitle: React.FC<{
+  line: SubtitleLine;
+  scale: number;
+  bandCenterFromBottom: number; // 照片安全框下缘到画布底部的带状区域中心,距底 px
+}> = ({line, scale, bandCenterFromBottom}) => {
   const frame = useCurrentFrame();
   const {fps, width} = useVideoConfig();
   const t = frame / fps;
 
-  const fadeIn = interpolate(t, [line.start, line.start + SUBTITLE.fadeInDuration], [0, 1], clamp);
-  const fadeOut = interpolate(t, [line.end, line.end + SUBTITLE.fadeOutDuration], [1, 0], clamp);
+  const inEnd = line.start + SUBTITLE.fadeInDuration;
+  const outEnd = line.end + SUBTITLE.fadeOutDuration;
+  const fadeIn = interpolate(t, [line.start, inEnd], [0, 1], clamp);
+  const fadeOut = interpolate(t, [line.end, outEnd], [1, 0], clamp);
   const opacity = Math.min(fadeIn, fadeOut);
-  const rise = interpolate(
-    t,
-    [line.start, line.start + SUBTITLE.fadeInDuration],
-    [SUBTITLE.riseDistance * scale, 0],
-    clamp,
-  );
+
+  // Apple Music 歌词行动效:进场上浮聚焦,退场继续上行化雾
+  const riseIn = interpolate(t, [line.start, inEnd], [SUBTITLE.riseDistance * scale, 0], easeOut);
+  const riseOut = interpolate(t, [line.end, outEnd], [0, -SUBTITLE.exitRise * scale], easeOut);
+  const rise = riseIn + riseOut;
+  const blurIn = interpolate(t, [line.start, inEnd], [SUBTITLE.blurIn * scale, 0], easeOut);
+  const blurOut = interpolate(t, [line.end, outEnd], [0, SUBTITLE.blurOut * scale], easeOut);
+  const blur = blurIn + blurOut;
 
   const letterSpacing =
     fullwidthLength(line.text) > SUBTITLE.compactThreshold
@@ -60,8 +69,8 @@ export const Subtitle: React.FC<{line: SubtitleLine; scale: number}> = ({line, s
   const maxWidth = width * 0.92;
   const fontSize = estWidth > maxWidth ? baseSize * (maxWidth / estWidth) : baseSize;
 
-  // 把"基线距底 34px"换算为盒模型 bottom(descentRatio 为经验值,视觉验收时校准)
-  const bottom = (SUBTITLE.baselineFromBottom - SUBTITLE.fontSize * SUBTITLE.descentRatio) * scale;
+  // 行框(lineHeight 1)垂直居中于照片下缘与画布底部之间的带状区域
+  const bottom = bandCenterFromBottom - fontSize / 2;
 
   return (
     <div
@@ -73,13 +82,14 @@ export const Subtitle: React.FC<{line: SubtitleLine; scale: number}> = ({line, s
         textAlign: 'center',
         opacity,
         transform: `translateY(${rise}px)`,
+        filter: blur > 0.05 ? `blur(${blur}px)` : undefined,
       }}
     >
       <span
         style={{
           fontFamily: resolveFontFamily(line.text, line.lang),
           fontSize,
-          fontWeight: 400,
+          fontWeight: SUBTITLE.fontWeight,
           color: SUBTITLE.color,
           lineHeight: 1,
           letterSpacing,

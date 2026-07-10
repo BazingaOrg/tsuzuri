@@ -29,11 +29,15 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
   const safeWidth = meta.width * meta.photo_scale;
   const safeHeight = meta.height * meta.photo_scale;
 
-  // 只挂载当前可见的照片(含 crossfade 前后沿)
+  // 字幕带:照片安全框下缘到画布底部,行框垂直居中于此
+  const bandCenterFromBottom = (meta.height * (1 - meta.photo_scale)) / 4;
+
+  // 只挂载当前可见的照片(含淡化前后沿)
+  const isFade = (ty?: string) => ty === 'crossfade' || ty === 'album';
   const visiblePhotos = photos.filter((p, i) => {
-    const dIn = p.transition.type === 'crossfade' ? p.transition.duration : 0;
+    const dIn = isFade(p.transition.type) ? p.transition.duration : 0;
     const next = photos[i + 1]?.transition;
-    const dOut = next?.type === 'crossfade' ? next.duration : 0;
+    const dOut = isFade(next?.type) ? (next?.duration ?? 0) : 0;
     return t >= p.start - dIn / 2 - 1 / fps && t <= p.end + dOut / 2 + 1 / fps;
   });
 
@@ -69,7 +73,12 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
         );
       })}
       {visibleSubtitles.map((l) => (
-        <Subtitle key={`${l.start}-${l.text}`} line={l} scale={scale} />
+        <Subtitle
+          key={`${l.start}-${l.text}`}
+          line={l}
+          scale={scale}
+          bandCenterFromBottom={bandCenterFromBottom}
+        />
       ))}
       {whiteFade > 0 ? (
         <AbsoluteFill style={{backgroundColor: meta.background, opacity: whiteFade}} />
