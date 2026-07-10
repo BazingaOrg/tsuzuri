@@ -70,14 +70,21 @@ def transcribe(audio: Path) -> tuple[str, list[Segment], str]:
     backend, model = _pick_backend()
     desc = f"{backend} / {model}"
     print(f"whisper backend: {desc}")
-    ensure_hf_reachable()
+
+    # TSUZURI_WHISPER_MODEL 也可以直接指向手动下载的模型目录
+    # (mlx:mlx-community/whisper-*-mlx 的 weights.npz + config.json;
+    #  faster-whisper:CTranslate2 格式目录),此时无需联网
+    local_dir = Path(model).expanduser()
+    is_local = local_dir.is_dir()
+    if not is_local:
+        ensure_hf_reachable()
 
     if backend == "mlx":
         import mlx_whisper
 
         result = mlx_whisper.transcribe(
             str(audio),
-            path_or_hf_repo=f"mlx-community/whisper-{model}-mlx",
+            path_or_hf_repo=str(local_dir) if is_local else f"mlx-community/whisper-{model}-mlx",
             word_timestamps=True,
             verbose=None,
         )
@@ -97,7 +104,7 @@ def transcribe(audio: Path) -> tuple[str, list[Segment], str]:
     from faster_whisper import WhisperModel
 
     wm = WhisperModel(
-        model,
+        str(local_dir) if is_local else model,
         device="cuda" if backend == "cuda" else "cpu",
         compute_type="float16" if backend == "cuda" else "int8",
     )
