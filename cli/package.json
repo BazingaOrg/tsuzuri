@@ -1,0 +1,9 @@
+{
+  "name": "tsuzuri",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "tsuzuri": "./tsuzuri.mjs"
+  }
+}
