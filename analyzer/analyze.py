@@ -20,6 +20,8 @@ from pathlib import Path
 import librosa
 import numpy as np
 
+import term
+
 
 def analyze_beats(audio_path: Path) -> dict:
     y, sr = librosa.load(str(audio_path), sr=None, mono=True)
@@ -80,19 +82,16 @@ def _try_demucs(audio_path: Path, workdir: Path) -> Path | None:
     设备:demucs 自动 CUDA-else-CPU(MPS 算子不全,不折腾)。每首歌至多一次。
     """
     if importlib.util.find_spec("demucs") is None:
-        print(
-            "demucs 未安装,跳过人声分离(可 uv sync --extra separation 启用)",
-            file=sys.stderr,
-        )
+        term.warn("demucs 未安装,跳过人声分离(可 uv sync --extra separation 启用)")
         return None
-    print("识别置信度低,启用 demucs 人声分离重跑…")
+    print(term.yellow("识别置信度低,启用 demucs 人声分离重跑…"))
     r = subprocess.run(
         [sys.executable, "-m", "demucs.separate", "--two-stems", "vocals",
          "-n", "htdemucs", "-o", str(workdir), str(audio_path)],
         capture_output=True, text=True,
     )
     if r.returncode != 0:
-        print(f"demucs 失败,沿用原始识别结果: {r.stderr.strip()[-200:]}", file=sys.stderr)
+        term.warn(f"demucs 失败,沿用原始识别结果: {r.stderr.strip()[-200:]}")
         return None
     vocals = workdir / "htdemucs" / audio_path.stem / "vocals.wav"
     return vocals if vocals.is_file() else None
@@ -116,7 +115,7 @@ def analyze_lyrics(audio_path: Path) -> dict:
 
     lang = language if language in KNOWN_LANGS else "mixed"
     if not segments:
-        print("lyrics: 未识别到人声 → 判定纯音乐,跳过字幕轨")
+        print(term.yellow("lyrics: 未识别到人声 → 判定纯音乐,跳过字幕轨"))
     return {
         "version": 1,
         "audio": audio_path.name,
@@ -155,11 +154,10 @@ def main(argv: list[str] | None = None) -> int:
     result = analyze_beats(args.audio)
     out = args.output or args.audio.parent / "beats.json"
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(
+    print(term.dim(
         f"beats: bpm={result['bpm']} beats={len(result['beats'])} "
-        f"downbeats={len(result['downbeats'])} first_onset={result['first_strong_onset']}s "
-        f"-> {out}"
-    )
+        f"downbeats={len(result['downbeats'])} first_onset={result['first_strong_onset']}s"
+    ))
 
     if not args.no_lyrics:
         lyrics = analyze_lyrics(args.audio)
@@ -167,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         lyrics_out.write_text(
             json.dumps(lyrics, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        print(f"lyrics: {len(lyrics['segments'])} 段({lyrics['backend']}) -> {lyrics_out}")
+        print(term.dim(f"lyrics: {len(lyrics['segments'])} 行({lyrics['backend']})"))
     return 0
 
 

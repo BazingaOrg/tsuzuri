@@ -17,8 +17,16 @@ const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.wav', '.flac', '.aac', '.ogg']);
 
+const TTY = process.stdout.isTTY && !process.env.NO_COLOR;
+const c = (code, s) => (TTY ? `\x1b[${code}m${s}\x1b[0m` : s);
+const dim = (s) => c('2', s);
+const cyan = (s) => c('36', s);
+const green = (s) => c('1;32', s);
+const yellow = (s) => c('33', s);
+const red = (s) => c('1;31', s);
+
 const die = (msg) => {
-  console.error(`tsuzuri: ${msg}`);
+  console.error(red(`tsuzuri: ${msg}`));
   process.exit(1);
 };
 
@@ -77,12 +85,12 @@ const main = () => {
       const existing = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
       if (existing?.meta?.input_hash === hash) {
         skipPlan = true;
-        console.log('输入未变 → 跳过分析,直接渲染现有 timeline.json(手改生效)');
+        console.log(yellow('输入未变 → 跳过分析,直接渲染现有 timeline.json(手改生效)'));
       } else {
-        console.log(existing?.meta?.input_hash ? '素材有变化 → 重新分析规划' : 'timeline.json 缺少 input_hash → 重新分析规划');
+        console.log(dim(existing?.meta?.input_hash ? '素材有变化 → 重新分析规划' : 'timeline.json 缺少 input_hash → 重新分析规划'));
       }
     } catch {
-      console.log('timeline.json 无法解析 → 重新分析规划');
+      console.log(dim('timeline.json 无法解析 → 重新分析规划'));
     }
   }
 
@@ -95,15 +103,15 @@ const main = () => {
   // 渲染前打印计划摘要(不询问确认,直接开始)
   const tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   const n = tl.photos.length;
-  console.log(`photos : ${n} 张,人均 ${(tl.meta.duration / n).toFixed(1)}s`);
-  console.log(`audio  : ${tl.meta.audio.replace(/^\.\//, '')},${tl.meta.duration}s`);
-  console.log(`lyrics : ${tl.subtitles.length > 0 ? `${tl.subtitles.length} 行` : '无(纯音乐或未识别)'}`);
+  console.log(`${cyan('photos')} : ${n} 张,人均 ${(tl.meta.duration / n).toFixed(1)}s`);
+  console.log(`${cyan('audio ')} : ${tl.meta.audio.replace(/^\.\//, '')},${Math.round(tl.meta.duration)}s`);
+  console.log(`${cyan('lyrics')} : ${tl.subtitles.length > 0 ? `${tl.subtitles.length} 行` : '无(纯音乐或未识别)'}`);
 
   const outPath = path.resolve(output ?? path.join(folder, `${path.basename(folder)}.mp4`));
   run('npx', ['remotion', 'render', 'Diary', outPath, `--props=${timelinePath}`, `--public-dir=${folder}`], {
     cwd: path.join(REPO, 'renderer'),
   });
-  console.log(`done -> ${outPath}`);
+  console.log(green(`✓ 完成 -> ${outPath}`));
 };
 
 main();

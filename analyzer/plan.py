@@ -17,6 +17,7 @@ from pathlib import Path
 
 from PIL import ExifTags, Image
 
+import term
 from beat_alloc import allocate_switch_points
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -52,7 +53,7 @@ def load_config(folder: Path) -> dict:
             user = tomllib.load(f)
         unknown = set(user) - set(DEFAULTS) - FOREIGN_KEYS
         if unknown:
-            print(f"warning: tsuzuri.toml 中未知配置项被忽略: {sorted(unknown)}", file=sys.stderr)
+            term.warn(f"warning: tsuzuri.toml 中未知配置项被忽略: {sorted(unknown)}")
         cfg.update({k: v for k, v in user.items() if k in DEFAULTS})
     return cfg
 
@@ -75,7 +76,7 @@ def _is_valid_image(path: Path) -> bool:
             im.verify()
         return True
     except Exception:
-        print(f"warning: 图片损坏,已跳过: {path.name}", file=sys.stderr)
+        term.warn(f"warning: 图片损坏,已跳过: {path.name}")
         return False
 
 
@@ -89,9 +90,9 @@ def ordered_photos(folder: Path) -> list[Path]:
         raise SystemExit(f"error: {folder} 中没有图片(支持 {'/'.join(sorted(IMAGE_EXTS))})")
     stamps = {p: exif_datetime(p) for p in photos}
     if all(stamps.values()):
-        print(f"photo order: EXIF 拍摄时间({len(photos)} 张)")
+        print(term.dim(f"photo order: EXIF 拍摄时间({len(photos)} 张)"))
         return sorted(photos, key=lambda p: (stamps[p], p.name))
-    print(f"photo order: 文件名排序({len(photos)} 张,EXIF 时间不完整)")
+    print(term.dim(f"photo order: 文件名排序({len(photos)} 张,EXIF 时间不完整)"))
     return photos
 
 
@@ -109,11 +110,11 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
         if candidates:
             duration = min(candidates, key=lambda d: abs(d - target))
             avg = duration / n
-            print(f"mode: 裁剪(歌长图少,在 {duration:.1f}s 重拍处截断 + 淡出,人均 {avg:.1f}s)")
+            print(term.yellow(f"mode: 裁剪(歌长图少,在 {duration:.1f}s 重拍处截断 + 淡出,人均 {avg:.1f}s)"))
 
     if avg < cfg["flash_avg_threshold"]:
         candidates, min_gap = beats["beats"], cfg["flash_min_gap"]
-        print(f"mode: 快闪(人均 {avg:.1f}s < {cfg['flash_avg_threshold']}s,吸附每拍,min_gap={min_gap}s)")
+        print(term.yellow(f"mode: 快闪(人均 {avg:.1f}s < {cfg['flash_avg_threshold']}s,吸附每拍,min_gap={min_gap}s)"))
     else:
         candidates, min_gap = beats["downbeats"], cfg["min_gap"]
 
@@ -128,7 +129,7 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     )
     if len(switches) < n - 1:
         dropped = n - 1 - len(switches)
-        print(f"warning: 时长塞不下全部照片,丢弃末尾 {dropped} 张", file=sys.stderr)
+        term.warn(f"warning: 时长塞不下全部照片,丢弃末尾 {dropped} 张")
         photos = photos[: len(switches) + 1]
         n = len(photos)
 
@@ -203,10 +204,10 @@ def main(argv: list[str] | None = None) -> int:
     out = args.output or folder / "timeline.json"
     out.write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
     n = len(timeline["photos"])
-    print(
+    print(term.dim(
         f"plan: {n} photos / {timeline['meta']['duration']}s "
-        f"(人均 {timeline['meta']['duration'] / n:.1f}s, 字幕 {len(lyrics)} 行) -> {out}"
-    )
+        f"(人均 {timeline['meta']['duration'] / n:.1f}s, 字幕 {len(lyrics)} 行)"
+    ))
     return 0
 
 

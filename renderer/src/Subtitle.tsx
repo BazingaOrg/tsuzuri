@@ -33,7 +33,7 @@ export const fullwidthLength = (text: string): number => {
 
 export const Subtitle: React.FC<{line: SubtitleLine; scale: number}> = ({line, scale}) => {
   const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+  const {fps, width} = useVideoConfig();
   const t = frame / fps;
 
   const fadeIn = interpolate(t, [line.start, line.start + SUBTITLE.fadeInDuration], [0, 1], clamp);
@@ -51,7 +51,15 @@ export const Subtitle: React.FC<{line: SubtitleLine; scale: number}> = ({line, s
       ? SUBTITLE.letterSpacingCompact
       : SUBTITLE.letterSpacing;
 
-  const fontSize = SUBTITLE.fontSize * scale;
+  // 超宽兜底:analyze 层已按词拆行,但手改 timeline 等场景仍可能出现超长行,
+  // 按估算宽度等比缩小字号,保证不溢出画布(估算:全角 1em、半角 0.5em + 字距)
+  const spacingEm = parseFloat(letterSpacing);
+  const units = fullwidthLength(line.text);
+  const baseSize = SUBTITLE.fontSize * scale;
+  const estWidth = baseSize * (units + line.text.length * spacingEm);
+  const maxWidth = width * 0.92;
+  const fontSize = estWidth > maxWidth ? baseSize * (maxWidth / estWidth) : baseSize;
+
   // 把"基线距底 34px"换算为盒模型 bottom(descentRatio 为经验值,视觉验收时校准)
   const bottom = (SUBTITLE.baselineFromBottom - SUBTITLE.fontSize * SUBTITLE.descentRatio) * scale;
 
