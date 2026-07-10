@@ -30,6 +30,7 @@
 - M1 视觉验收最后一步(对照用户剪映旧成片调阴影、字幕基线 `descentRatio`)只能由用户做。
 - M2 验收项:用 3–5 首真实歌曲实测节拍准确度,不准的记录作为 madmom 升级依据。
 - M4 验收剩余:用中/日/英各一首真实歌曲验证(需要用户素材);demucs 未实测(需 `uv sync --extra separation` + 一首人声弱的歌)。
+- Windows:代码层面兼容(faster-whisper CPU/CUDA 路径、npx 坑已修 9e09165),未真机实测;最可能的坑:CJK/空格路径、demucs 的 torch 安装。
 - M5 剩余:快闪/裁剪阈值用真实素材调优;examples 目前只有生成的 fixture,可补一组真实示例照片 + 无版权音乐。
 - Whisper 模型可用 `TSUZURI_WHISPER_MODEL=tiny|small|medium` 临时覆盖(调试用)。
 - Review 遗留(advisory,未修):吸附无距离上限(候选极稀时会吸到很远的拍点,DP 升级时一并解决);EXIF 排序是全有全无策略;信息条(INFO_BAR)常量已定义但渲染未实现(默认关,M6);HF 连通性探测用 urllib,SOCKS-only 环境会误切镜像(镜像可用,无害)。
