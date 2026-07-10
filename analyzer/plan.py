@@ -33,6 +33,8 @@ DEFAULTS = {
     "kenburns_to": 1.035,
     "flash_avg_threshold": 2.0,
     "flash_min_gap": 0.8,
+    "trim_avg_threshold": 10.0,  # 人均展示超过此值 → 裁剪音频
+    "trim_target_avg": 8.0,      # 裁剪目标:人均展示秒数
 }
 
 DATETIME_ORIGINAL = next(k for k, v in ExifTags.TAGS.items() if v == "DateTimeOriginal")
@@ -63,8 +65,22 @@ def exif_datetime(path: Path) -> str | None:
         return None
 
 
+def _is_valid_image(path: Path) -> bool:
+    try:
+        with Image.open(path) as im:
+            im.verify()
+        return True
+    except Exception:
+        print(f"warning: 图片损坏,已跳过: {path.name}", file=sys.stderr)
+        return False
+
+
 def ordered_photos(folder: Path) -> list[Path]:
-    photos = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXTS)
+    photos = sorted(
+        p
+        for p in folder.iterdir()
+        if p.suffix.lower() in IMAGE_EXTS and _is_valid_image(p)
+    )
     if not photos:
         raise SystemExit(f"error: {folder} 中没有图片(支持 {'/'.join(sorted(IMAGE_EXTS))})")
     stamps = {p: exif_datetime(p) for p in photos}
@@ -81,6 +97,15 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     duration = float(beats["duration"])
     n = len(photos)
     avg = duration / n
+
+    # 图少歌长:在目标时长附近的重拍处截断(渲染端按 duration 收尾淡出,无需真裁音频)
+    if avg > cfg["trim_avg_threshold"]:
+        target = n * cfg["trim_target_avg"]
+        candidates = [d for d in beats["downbeats"] if d >= n * cfg["min_gap"]]
+        if candidates:
+            duration = min(candidates, key=lambda d: abs(d - target))
+            avg = duration / n
+            print(f"mode: 裁剪(歌长图少,在 {duration:.1f}s 重拍处截断 + 淡出,人均 {avg:.1f}s)")
 
     if avg < cfg["flash_avg_threshold"]:
         candidates, min_gap = beats["beats"], cfg["flash_min_gap"]

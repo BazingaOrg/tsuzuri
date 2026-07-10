@@ -11,8 +11,8 @@
 | M1 渲染端 | done | ccb1d78 | 关键帧检查通过;待用户对照剪映旧成片校调阴影/字幕参数 |
 | M2 音频分析 | done | d921c4b | 120BPM click track 检出 120.19;待真实歌曲实测(M2 验收项) |
 | M3 分配算法 + CLI | done | 39e8800 | 14 单测过;E2E `tsuzuri <folder>` 已跑通 |
-| M4 歌词字幕 | pending | — | Whisper backend resolver + faster-whisper/mlx |
-| M5 边界打磨 | pending | — | 裁歌策略、异常输入、README、examples |
+| M4 歌词字幕 | done | d315599 | mlx 后端实测(合成语音 3 段 + 纯音乐 0 段);待中/日/英真歌验收 |
+| M5 边界打磨 | done* | — | 裁歌、快闪、损坏图跳过、README 完成;*真实素材阈值调优待用户 |
 
 ## 关键决策(计划文档之外新增)
 
@@ -29,8 +29,10 @@
 
 - M1 视觉验收最后一步(对照用户剪映旧成片调阴影、字幕基线 `descentRatio`)只能由用户做。
 - M2 验收项:用 3–5 首真实歌曲实测节拍准确度,不准的记录作为 madmom 升级依据。
-- M4:Whisper resolver(mlx / CUDA / CPU int8)+ HF 镜像连通性检测 + demucs fallback;faster-whisper 需另开依赖组(或独立 venv),避免拖累纯节拍路径。
-- M5:图少歌长裁剪、异常输入(损坏图片等)、examples 完整示例、双语 README。
+- M4 验收剩余:用中/日/英各一首真实歌曲验证(需要用户素材);demucs 未实测(需 `uv sync --extra separation` + 一首人声弱的歌)。
+- M5 剩余:快闪/裁剪阈值用真实素材调优;examples 目前只有生成的 fixture,可补一组真实示例照片 + 无版权音乐。
+- Whisper 模型可用 `TSUZURI_WHISPER_MODEL=tiny|small|medium` 临时覆盖(调试用)。
+- 本机环境有 SOCKS 代理,已加 `httpx[socks]` 依赖(顺带惠及代理用户)。
 
 ## 环境
 
