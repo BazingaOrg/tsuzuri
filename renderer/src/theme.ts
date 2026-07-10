@@ -39,7 +39,9 @@ export const INFO_BAR = {
 
 export const ANIMATION = {
   crossfadeDuration: 0.6, // 秒;淡化中点对齐节拍点
-  enterScaleFrom: 1.02, // 新照片进场 scale 1.02 → 1.00 落定
+  enterScaleFrom: 1.02, // crossfade 进场 scale 1.02 → 1.00 落定
+  cutScaleFrom: 1.045, // cut 硬切进场的落定回弹幅度
+  cutSettleDuration: 0.28, // 秒;回弹落定时长(easeOut)
   kenburnsFrom: 1.0,
   kenburnsTo: 1.035,
   endingFadeDuration: 1.5, // 秒;音频淡出 + 画面淡至白

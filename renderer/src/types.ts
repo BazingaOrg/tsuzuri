@@ -1,6 +1,6 @@
 export type TransitionSpec = {
-  type: 'crossfade' | 'none';
-  duration: number; // seconds
+  type: 'crossfade' | 'cut' | 'none';
+  duration: number; // seconds; cut/none 为 0
 };
 
 export type MotionSpec = {

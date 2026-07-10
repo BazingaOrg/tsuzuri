@@ -29,6 +29,8 @@ DEFAULTS = {
     "background": "#FFFFFF",
     "photo_scale": 0.8,
     "min_gap": 2.0,
+    "transition": "cut",      # cut(硬切踩拍,默认)| crossfade(交叉淡化)
+    "motion": "none",         # none(静止,默认)| kenburns(缓慢推近)
     "crossfade": 0.6,
     "kenburns_from": 1.0,
     "kenburns_to": 1.035,
@@ -41,6 +43,9 @@ DEFAULTS = {
 
 # 属于其他阶段的合法配置键,plan 不消费但不该告警
 FOREIGN_KEYS = {"demucs"}
+
+# Whisper 段置信度阈值,与渲染层 SUBTITLE.confidenceThreshold 保持一致
+CONFIDENCE_THRESHOLD = 0.6
 
 DATETIME_ORIGINAL = next(k for k, v in ExifTags.TAGS.items() if v == "DateTimeOriginal")
 
@@ -133,6 +138,15 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
         photos = photos[: len(switches) + 1]
         n = len(photos)
 
+    if cfg["transition"] == "crossfade":
+        later_transition = {"type": "crossfade", "duration": cfg["crossfade"]}
+    else:
+        later_transition = {"type": "cut", "duration": 0}
+    if cfg["motion"] == "kenburns":
+        motion = {"type": "kenburns", "from": cfg["kenburns_from"], "to": cfg["kenburns_to"]}
+    else:
+        motion = {"type": "none", "from": 1.0, "to": 1.0}
+
     bounds = [0.0, *switches, duration]
     clips = []
     for i, p in enumerate(photos):
@@ -140,12 +154,8 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
             "src": f"./{p.relative_to(folder)}",
             "start": round(bounds[i], 3),
             "end": round(bounds[i + 1], 3),
-            "transition": (
-                {"type": "none", "duration": 0}
-                if i == 0
-                else {"type": "crossfade", "duration": cfg["crossfade"]}
-            ),
-            "motion": {"type": "kenburns", "from": cfg["kenburns_from"], "to": cfg["kenburns_to"]},
+            "transition": {"type": "none", "duration": 0} if i == 0 else dict(later_transition),
+            "motion": dict(motion),
         })
 
     meta = {
@@ -198,6 +208,16 @@ def main(argv: list[str] | None = None) -> int:
     if not cfg["subtitles"] and lyrics:
         print("subtitles: 已按 tsuzuri.toml 关闭字幕轨")
         lyrics = []
+
+    # 置信度过滤在 plan 层做并明确告知,timeline 即所见即所得
+    # (渲染层保留同阈值兜底;0.6 与 whisper 幻觉风险的权衡见计划文档第四节)
+    kept = [s for s in lyrics if s["confidence"] >= CONFIDENCE_THRESHOLD]
+    if len(kept) < len(lyrics):
+        term.warn(
+            f"lyrics: {len(lyrics) - len(kept)} 行置信度 < {CONFIDENCE_THRESHOLD} 被过滤"
+            "(宁可漏不可错,防识别幻觉)"
+        )
+    lyrics = kept
 
     timeline = build_timeline(folder, beats, lyrics, cfg, args.input_hash)
 

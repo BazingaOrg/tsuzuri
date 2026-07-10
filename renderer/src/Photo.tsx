@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {ANIMATION, PHOTO} from './theme';
 import type {PhotoClip, TransitionSpec} from './types';
 
@@ -45,16 +45,23 @@ export const Photo: React.FC<{
       ? interpolate(t, [clip.start, clip.end], [clip.motion.from, clip.motion.to], clamp)
       : 1;
 
-  // 进场落定:crossfade 期间 1.02 → 1.00
-  const enter =
-    dIn > 0
-      ? interpolate(
-          t,
-          [clip.start - dIn / 2, clip.start + dIn / 2],
-          [ANIMATION.enterScaleFrom, 1],
-          clamp,
-        )
-      : 1;
+  // 进场落定:crossfade 期间 1.02 → 1.00;cut 硬切后 1.045 → 1.00 快速回弹(切换感)
+  let enter = 1;
+  if (dIn > 0) {
+    enter = interpolate(
+      t,
+      [clip.start - dIn / 2, clip.start + dIn / 2],
+      [ANIMATION.enterScaleFrom, 1],
+      clamp,
+    );
+  } else if (clip.transition.type === 'cut') {
+    enter = interpolate(
+      t,
+      [clip.start, clip.start + ANIMATION.cutSettleDuration],
+      [ANIMATION.cutScaleFrom, 1],
+      {...clamp, easing: Easing.out(Easing.cubic)},
+    );
+  }
 
   return (
     <AbsoluteFill
