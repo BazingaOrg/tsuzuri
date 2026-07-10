@@ -147,7 +147,10 @@ const main = () => {
   console.log(`${cyan('lyrics')} : ${tl.subtitles.length > 0 ? `${tl.subtitles.length} 行` : '无(纯音乐或未识别)'}`);
 
   const outPath = path.resolve(output ?? path.join(folder, `${path.basename(folder)}.mp4`));
-  run('npx', ['remotion', 'render', 'Diary', outPath, `--props=${timelinePath}`, `--public-dir=${folder}`], {
+  // 直接用 node 调 Remotion CLI 入口:避开 npx(Windows 上 .cmd 无法无 shell 派生)
+  const remotionCli = path.join(REPO, 'renderer', 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
+  if (!fs.existsSync(remotionCli)) die('渲染器依赖未安装,先执行: cd renderer && npm install');
+  run(process.execPath, [remotionCli, 'render', 'Diary', outPath, `--props=${timelinePath}`, `--public-dir=${folder}`], {
     cwd: path.join(REPO, 'renderer'),
   });
   normalizeLoudness(outPath);
