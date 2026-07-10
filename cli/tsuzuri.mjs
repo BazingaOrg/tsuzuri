@@ -68,6 +68,45 @@ const run = (cmd, args, opts = {}) => {
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
 
+// ---- 响度归一:成片统一到流媒体参考响度,线性增益保留音乐动态 ----
+const TARGET_LUFS = -14;
+const TARGET_TP = -1.5;
+
+const ffmpegQuiet = (args) => spawnSync('ffmpeg', ['-hide_banner', '-nostats', ...args], {encoding: 'utf8'});
+
+const normalizeLoudness = (file) => {
+  const probe = ffmpegQuiet([
+    '-i', file, '-map', 'a:0',
+    '-af', `loudnorm=I=${TARGET_LUFS}:TP=${TARGET_TP}:LRA=11:print_format=json`,
+    '-f', 'null', '-',
+  ]);
+  const match = probe.stderr?.match(/\{[\s\S]*?\}/);
+  if (probe.error || !match) {
+    console.log(yellow('loudness: 测量失败,保留原始响度'));
+    return;
+  }
+  const m = JSON.parse(match[0]);
+  const measured = parseFloat(m.input_i);
+  if (Math.abs(measured - TARGET_LUFS) <= 1.0 && parseFloat(m.input_tp) <= -1.0) {
+    console.log(dim(`loudness: ${measured.toFixed(1)} LUFS,已接近 ${TARGET_LUFS},跳过归一`));
+    return;
+  }
+  const tmp = `${file}.loudnorm.mp4`;
+  const af =
+    `loudnorm=I=${TARGET_LUFS}:TP=${TARGET_TP}:LRA=11:linear=true` +
+    `:measured_I=${m.input_i}:measured_TP=${m.input_tp}` +
+    `:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}` +
+    `:offset=${m.target_offset}`;
+  const enc = ffmpegQuiet(['-y', '-i', file, '-c:v', 'copy', '-af', af, '-c:a', 'aac', '-b:a', '256k', tmp]);
+  if (enc.error || enc.status !== 0 || !fs.existsSync(tmp)) {
+    fs.rmSync(tmp, {force: true});
+    console.log(yellow('loudness: 归一失败,保留原始响度'));
+    return;
+  }
+  fs.renameSync(tmp, file);
+  console.log(dim(`loudness: ${measured.toFixed(1)} → ${TARGET_LUFS} LUFS(真峰值 ≤ ${TARGET_TP}dB)`));
+};
+
 const main = () => {
   const {folder: folderArg, output} = parseArgs(process.argv.slice(2));
   const folder = path.resolve(folderArg);
@@ -111,6 +150,7 @@ const main = () => {
   run('npx', ['remotion', 'render', 'Diary', outPath, `--props=${timelinePath}`, `--public-dir=${folder}`], {
     cwd: path.join(REPO, 'renderer'),
   });
+  normalizeLoudness(outPath);
   console.log(green(`✓ 完成 -> ${outPath}`));
 };
 

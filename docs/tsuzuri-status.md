@@ -34,6 +34,9 @@
 - Whisper 模型可用 `TSUZURI_WHISPER_MODEL=tiny|small|medium` 临时覆盖(调试用)。
 - Review 遗留(advisory,未修):吸附无距离上限(候选极稀时会吸到很远的拍点,DP 升级时一并解决);EXIF 排序是全有全无策略;信息条(INFO_BAR)常量已定义但渲染未实现(默认关,M6);HF 连通性探测用 urllib,SOCKS-only 环境会误切镜像(镜像可用,无害)。
 - beat_alloc 约束优先级:所有间隔约束 > 切换点数量,塞不下时丢弃尾部照片(2026-07-10 review 修复了回退分支违反 min_gap 的 bug)。
+- 歌词长段按词级时间戳拆行(上限 30 全角等效),断点优先乐句边界:词间停顿 ≥0.3s / 下一词大写开头(排除恒大写 "I")/ 标点收尾;渲染端另有超宽缩字号兜底。
+- 成片响度归一:CLI 渲染后用 ffmpeg loudnorm 两遍法(linear=true 纯增益)统一到 -14 LUFS / TP -1.5dB,源已达标(±1 LU 且 TP ≤ -1)则跳过;视频流 copy 不重编码。
+- 本地模型约定目录 `models/whisper-<size>-mlx`(gitignore),`TSUZURI_WHISPER_MODEL` 可指定尺寸或路径。
 - 本机环境有 SOCKS 代理,已加 `httpx[socks]` 依赖(顺带惠及代理用户)。
 
 ## 环境

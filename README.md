@@ -28,6 +28,7 @@ That's the only command. No flags to learn (`-o` to change the output path is th
 | Flash mode / 快闪 | avg display < 2s → snap to every beat / 人均 < 2s 自动切换 |
 | Long song / 歌长图少 | avg > 10s → cut at a downbeat near target + fade / 重拍处截断 + 淡出 |
 | Re-render / 微调重渲 | hand-edit `timeline.json`, rerun → skips analysis / 手改后重跑直接渲染 |
+| Loudness / 响度 | normalized to −14 LUFS, TP −1.5 dB (linear gain) / 成片归一到流媒体参考响度 |
 
 Optional `tsuzuri.toml` in the folder overrides defaults (`photo_scale`, `min_gap`, …).
 
