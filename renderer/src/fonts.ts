@@ -8,7 +8,11 @@ import notoSerif from './fonts/NotoSerif-VF.ttf';
 
 const loadFont = (family: string, url: string) => {
   if (typeof document === 'undefined') return;
-  const handle = delayRender(`loading font ${family}`);
+  // CJK 变量字体 13–25MB,渲染多页并发时解析可能远超默认 30s 超时
+  const handle = delayRender(`loading font ${family}`, {
+    timeoutInMilliseconds: 180_000,
+    retries: 2,
+  });
   const face = new FontFace(family, `url(${url}) format('truetype-variations')`, {
     weight: '200 900',
   });
