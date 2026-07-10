@@ -9,7 +9,14 @@ dependencies = [
     "numpy",
     "pillow>=12.3.0",
     "soundfile",
+    "faster-whisper>=1.0",  # 全平台兜底
+    "mlx-whisper; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "httpx[socks]>=0.28.1",
 ]
+
+[project.optional-dependencies]
+# 人声分离 fallback(重依赖,按需安装:uv sync --extra separation)
+separation = ["demucs>=4"]
 
 [project.scripts]
 tsuzuri-analyze = "analyze:main"

@@ -1,14 +1,20 @@
-"""analyze 阶段:音频 → beats.json。
+"""analyze 阶段:音频 → beats.json + lyrics.json。
 
-M2 范围:librosa 节拍检测 + 强 onset(前奏起算点)。
-歌词识别(lyrics.json,Whisper)在 M4 接入本模块。
+M2:librosa 节拍检测 + 强 onset(前奏起算点)。
+M4:Whisper 歌词识别(后端自动探测,见 whisper_backend),
+    低置信度时可选 demucs 人声分离重跑一次;纯音乐输出空 segments。
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import statistics
+import subprocess
 import sys
+import tempfile
+import tomllib
 from pathlib import Path
 
 import librosa
@@ -56,6 +62,79 @@ def analyze_beats(audio_path: Path) -> dict:
     }
 
 
+LOW_CONFIDENCE = 0.5  # 整体置信度低于此值触发 demucs 重跑
+KNOWN_LANGS = {"ja", "zh", "en"}
+
+
+def _demucs_enabled(audio_path: Path) -> bool:
+    toml_path = audio_path.parent / "tsuzuri.toml"
+    if toml_path.is_file():
+        with toml_path.open("rb") as f:
+            return bool(tomllib.load(f).get("demucs", True))
+    return True
+
+
+def _try_demucs(audio_path: Path, workdir: Path) -> Path | None:
+    """人声分离,返回 vocals.wav 路径;demucs 未安装或失败返回 None。
+
+    设备:demucs 自动 CUDA-else-CPU(MPS 算子不全,不折腾)。每首歌至多一次。
+    """
+    if importlib.util.find_spec("demucs") is None:
+        print(
+            "demucs 未安装,跳过人声分离(可 uv sync --extra separation 启用)",
+            file=sys.stderr,
+        )
+        return None
+    print("识别置信度低,启用 demucs 人声分离重跑…")
+    r = subprocess.run(
+        [sys.executable, "-m", "demucs.separate", "--two-stems", "vocals",
+         "-n", "htdemucs", "-o", str(workdir), str(audio_path)],
+        capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        print(f"demucs 失败,沿用原始识别结果: {r.stderr.strip()[-200:]}", file=sys.stderr)
+        return None
+    vocals = workdir / "htdemucs" / audio_path.stem / "vocals.wav"
+    return vocals if vocals.is_file() else None
+
+
+def analyze_lyrics(audio_path: Path) -> dict:
+    from whisper_backend import transcribe
+
+    language, segments, backend = transcribe(audio_path)
+
+    avg_conf = statistics.fmean(s.confidence for s in segments) if segments else 0.0
+    if (not segments or avg_conf < LOW_CONFIDENCE) and _demucs_enabled(audio_path):
+        with tempfile.TemporaryDirectory(prefix="tsuzuri-demucs-") as tmp:
+            vocals = _try_demucs(audio_path, Path(tmp))
+            if vocals is not None:
+                language2, segments2, backend2 = transcribe(vocals)
+                avg2 = statistics.fmean(s.confidence for s in segments2) if segments2 else 0.0
+                if avg2 > avg_conf:
+                    language, segments, backend = language2, segments2, f"{backend2} + demucs"
+                    avg_conf = avg2
+
+    lang = language if language in KNOWN_LANGS else "mixed"
+    if not segments:
+        print("lyrics: 未识别到人声 → 判定纯音乐,跳过字幕轨")
+    return {
+        "version": 1,
+        "audio": audio_path.name,
+        "language": language,
+        "backend": backend,
+        "segments": [
+            {
+                "text": s.text,
+                "lang": lang,
+                "start": round(s.start, 3),
+                "end": round(s.end, 3),
+                "confidence": s.confidence,
+            }
+            for s in segments
+        ],
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="tsuzuri analyze: audio -> beats.json")
     parser.add_argument("audio", type=Path, help="音频文件路径")
@@ -64,8 +143,9 @@ def main(argv: list[str] | None = None) -> int:
         "--output",
         type=Path,
         default=None,
-        help="输出路径(默认与音频同目录 beats.json)",
+        help="beats.json 输出路径(默认与音频同目录;lyrics.json 总是落在音频同目录)",
     )
+    parser.add_argument("--no-lyrics", action="store_true", help="跳过歌词识别(调试用)")
     args = parser.parse_args(argv)
 
     if not args.audio.is_file():
@@ -80,6 +160,14 @@ def main(argv: list[str] | None = None) -> int:
         f"downbeats={len(result['downbeats'])} first_onset={result['first_strong_onset']}s "
         f"-> {out}"
     )
+
+    if not args.no_lyrics:
+        lyrics = analyze_lyrics(args.audio)
+        lyrics_out = args.audio.parent / "lyrics.json"
+        lyrics_out.write_text(
+            json.dumps(lyrics, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(f"lyrics: {len(lyrics['segments'])} 段({lyrics['backend']}) -> {lyrics_out}")
     return 0
 
 
