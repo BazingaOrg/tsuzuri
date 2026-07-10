@@ -18,6 +18,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+def _local_model_dir(backend: str, model: str) -> Path | None:
+    """本地模型目录查找:env 指定的路径 > 仓库 models/ 约定目录 > 无(走 HF 下载)。
+
+    约定目录名与 HF 仓库同名:models/whisper-<size>-mlx(mlx)、
+    models/faster-whisper-<size>(CTranslate2 格式)。
+    """
+    p = Path(model).expanduser()
+    if p.is_dir():
+        return p
+    name = f"whisper-{model}-mlx" if backend == "mlx" else f"faster-whisper-{model}"
+    cand = REPO_ROOT / "models" / name
+    return cand if cand.is_dir() else None
+
+
 @dataclass
 class Segment:
     text: str
@@ -71,20 +87,21 @@ def transcribe(audio: Path) -> tuple[str, list[Segment], str]:
     desc = f"{backend} / {model}"
     print(f"whisper backend: {desc}")
 
-    # TSUZURI_WHISPER_MODEL 也可以直接指向手动下载的模型目录
-    # (mlx:mlx-community/whisper-*-mlx 的 weights.npz + config.json;
-    #  faster-whisper:CTranslate2 格式目录),此时无需联网
-    local_dir = Path(model).expanduser()
-    is_local = local_dir.is_dir()
-    if not is_local:
+    # 本地模型:TSUZURI_WHISPER_MODEL 指向目录,或放在仓库 models/ 约定目录,
+    # 均跳过联网;否则从 HF 下载(mlx:weights.npz + config.json;
+    # faster-whisper:CTranslate2 格式目录)
+    local_dir = _local_model_dir(backend, model)
+    if local_dir is None:
         ensure_hf_reachable()
+    else:
+        print(f"whisper model: 本地 {local_dir}")
 
     if backend == "mlx":
         import mlx_whisper
 
         result = mlx_whisper.transcribe(
             str(audio),
-            path_or_hf_repo=str(local_dir) if is_local else f"mlx-community/whisper-{model}-mlx",
+            path_or_hf_repo=str(local_dir) if local_dir else f"mlx-community/whisper-{model}-mlx",
             word_timestamps=True,
             verbose=None,
         )
@@ -104,7 +121,7 @@ def transcribe(audio: Path) -> tuple[str, list[Segment], str]:
     from faster_whisper import WhisperModel
 
     wm = WhisperModel(
-        str(local_dir) if is_local else model,
+        str(local_dir) if local_dir else model,
         device="cuda" if backend == "cuda" else "cpu",
         compute_type="float16" if backend == "cuda" else "int8",
     )

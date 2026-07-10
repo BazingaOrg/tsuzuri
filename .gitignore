@@ -9,5 +9,8 @@ __pycache__/
 *.pyc
 .venv/
 
+# 本地 Whisper 模型(约定目录,手动下载放这里,不入库)
+models/
+
 # macOS
 .DS_Store
