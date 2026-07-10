@@ -85,10 +85,16 @@ class TestFallback:
         assert min_gap_of(result, 30.0) >= 2.0 - 1e-9
 
     def test_fallback_after_tail_candidate_keeps_min_gap(self):
-        # 回归:唯一候选吸附在尾部(27.5),下一个理想点走回退分支,
-        # 旧实现会挤出 0.5s 间隔;现在必须保持 min_gap 或直接放弃该点
+        # 回归:唯一候选在尾部(27.5),距两个理想点都超过吸附上限(半步长 5s)
+        # → 全部回退均匀网格。旧实现曾吸附 27.5 后挤出 0.5s 间隔违反 min_gap
         result = allocate_switch_points(30.0, 3, [27.5])
+        assert result == [10.0, 20.0]
         assert min_gap_of(result, 30.0) >= 2.0 - 1e-9
+
+    def test_snap_distance_capped_at_half_grid_step(self):
+        # 候选偏离所有理想网格点超过半个步长(60/4/2=7.5)→ 回退网格,不毁节奏
+        result = allocate_switch_points(60.0, 4, [58.0])
+        assert result == [15.0, 30.0, 45.0]
 
     def test_extreme_mismatch_may_drop_points(self):
         # 10s 塞 10 张(min_gap 2s)必然放不下 9 个切换点
