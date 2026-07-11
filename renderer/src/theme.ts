@@ -53,12 +53,14 @@ export const ANIMATION = {
 } as const;
 
 export const INTRO = {
-  // 片头:白画布上手写签名居中"写"出,随后整卡淡出露出第一张照片
+  // 片头:白画布上手写签名沿笔迹描边写出,再上墨填充,随后整卡淡出
   height: 120, // 签名字形高度(px,1080p 基准)
   color: '#37332D', // 与字幕同级的墨色
   opacity: 0.9,
-  writeDuration: 1.4, // 秒;从左到右运笔揭开
-  hold: 0.7, // 秒;写完停留
+  strokeWidth: 2.5, // viewBox 单位;书写阶段的笔迹粗细
+  drawDuration: 1.4, // 秒;描边沿笔迹画出
+  inkDuration: 0.35, // 秒;填充淡入(上墨)
+  hold: 0.4, // 秒;写完停留
   fadeOut: 0.5, // 秒;整卡淡出
   minPhotoVisible: 0.8, // 秒;第一张照片在片头结束后至少可见时长,不足则跳过片头
 } as const;

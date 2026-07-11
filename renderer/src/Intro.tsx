@@ -5,12 +5,19 @@ import {INTRO} from './theme';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
-export const introDuration = INTRO.writeDuration + INTRO.hold + INTRO.fadeOut;
+export const introDuration =
+  INTRO.drawDuration + INTRO.inkDuration + INTRO.hold + INTRO.fadeOut;
+
+// 签名路径总长(渲染所用 chrome-headless-shell 中 getTotalLength() 实测值)。
+// 注意不能用 pathLength="100" 归一化:Chrome 对多子路径 <path> 设置
+// pathLength 后会整体禁用虚线(实测),故直接采用真实长度。
+const SIGNATURE_PATH_TOTAL_LENGTH = 2109.58;
 
 /**
- * 片头:白画布上签名居中"写"出来。
- * 字形是轮廓填充路径(无笔画骨架),用带羽化的渐变遮罩沿书写方向揭开——
- * 软边缘读作"墨迹在流",硬边 clip 会暴露连笔字的笔顺错位。
+ * 片头:白画布上签名沿笔迹"写"出来,再"上墨"填充。
+ * 经典虚线偏移手法:stroke-dasharray = 路径总长,dashoffset 从总长到 0,
+ * 实线段沿路径滑入,视觉上如笔沿字迹书写;CSS animation 在 Remotion
+ * 不可用,由 useCurrentFrame 逐帧驱动同一原理。
  */
 export const Intro: React.FC<{backgroundColor: string; scale: number}> = ({
   backgroundColor,
@@ -20,19 +27,20 @@ export const Intro: React.FC<{backgroundColor: string; scale: number}> = ({
   const {fps} = useVideoConfig();
   const t = frame / fps;
 
-  // 运笔进度:慢起 → 匀速 → 缓收
-  const progress = interpolate(t, [0, INTRO.writeDuration], [0, 1], {
-    ...clamp,
-    easing: Easing.bezier(0.35, 0, 0.55, 1),
-  });
-  // 羽化 12%:黑(可见)边界推进,前沿渐隐模拟墨迹
-  const feather = 12;
-  const edge = progress * (100 + feather);
-  const mask = `linear-gradient(100deg, #000 ${edge - feather}%, transparent ${edge}%)`;
+  // 书写:描边沿笔迹画出(慢起 → 匀速 → 缓收)
+  const dashOffset = interpolate(
+    t,
+    [0, INTRO.drawDuration],
+    [SIGNATURE_PATH_TOTAL_LENGTH, 0],
+    {...clamp, easing: Easing.bezier(0.35, 0, 0.55, 1)},
+  );
+  // 上墨:书写收尾后填充淡入,如墨水晕开;描边同步让位
+  const inkStart = INTRO.drawDuration;
+  const fillOpacity = interpolate(t, [inkStart, inkStart + INTRO.inkDuration], [0, 1], clamp);
 
   const cardOpacity = interpolate(
     t,
-    [INTRO.writeDuration + INTRO.hold, introDuration],
+    [introDuration - INTRO.fadeOut, introDuration],
     [1, 0],
     clamp,
   );
@@ -49,9 +57,16 @@ export const Intro: React.FC<{backgroundColor: string; scale: number}> = ({
         opacity: cardOpacity,
       }}
     >
-      <div style={{WebkitMaskImage: mask, maskImage: mask}}>
-        <Signature style={{width, height, color: INTRO.color, opacity: INTRO.opacity, display: 'block'}} />
-      </div>
+      <Signature
+        style={{width, height, color: INTRO.color, opacity: INTRO.opacity, display: 'block'}}
+        pathProps={{
+          fillOpacity,
+          stroke: 'currentColor',
+          strokeWidth: INTRO.strokeWidth,
+          strokeDasharray: SIGNATURE_PATH_TOTAL_LENGTH,
+          strokeDashoffset: dashOffset,
+        }}
+      />
     </AbsoluteFill>
   );
 };
