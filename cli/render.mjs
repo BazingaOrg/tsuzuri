@@ -68,6 +68,14 @@ const main = async () => {
       outputLocation: outputPath,
       overwrite: true,
       logLevel: 'error',
+      // 接管浏览器控制台输出:不再与进行中的进度行挤在同一行
+      onBrowserLog: ({type, text, stackTrace}) => {
+        if (type !== 'error' && type !== 'warning') return;
+        const at = stackTrace?.[0]?.url
+          ? ` (${stackTrace[0].url}:${stackTrace[0].lineNumber ?? '?'})`
+          : '';
+        progress.println(`[browser ${type}] ${text}${at}`);
+      },
       onProgress: ({renderedFrames, encodedFrames}) => {
         if (renderedFrames < totalFrames) {
           progress.update('Rendering frames', renderedFrames / totalFrames);

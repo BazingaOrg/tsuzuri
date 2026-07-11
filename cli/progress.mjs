@@ -12,6 +12,8 @@ export const createPercentProgress = ({stream = process.stdout} = {}) => {
     if (interactive && label !== null) stream.write('\n');
   };
 
+  const currentLine = () => `└ ${label.padEnd(18)} ${String(percent).padStart(3)}%`;
+
   return {
     update(nextLabel, value) {
       const nextPercent = clampPercent(value);
@@ -23,7 +25,7 @@ export const createPercentProgress = ({stream = process.stdout} = {}) => {
       }
       if (nextPercent === percent) return;
       percent = nextPercent;
-      const line = `└ ${label.padEnd(18)} ${String(percent).padStart(3)}%`;
+      const line = currentLine();
 
       if (interactive) {
         stream.write(`\r\x1b[2K${line}`);
@@ -35,6 +37,14 @@ export const createPercentProgress = ({stream = process.stdout} = {}) => {
       if (bucket > lastPrintedBucket) {
         stream.write(`${line}\n`);
         lastPrintedBucket = bucket;
+      }
+    },
+    /** 打印一行外部消息(如浏览器日志),不打断进行中的进度行。 */
+    println(text) {
+      if (interactive && label !== null && percent >= 0) {
+        stream.write(`\r\x1b[2K${text}\n${currentLine()}`);
+      } else {
+        stream.write(`${text}\n`);
       }
     },
     finish() {
