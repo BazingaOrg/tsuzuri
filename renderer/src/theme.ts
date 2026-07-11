@@ -51,6 +51,15 @@ export const ANIMATION = {
   endingFadeDuration: 1.5, // 秒;音频淡出 + 画面淡至白
 } as const;
 
+export const SIGNATURE = {
+  // 右下角落款:低两级于字幕的存在感;片尾淡白后保留(层级在白场之上)
+  height: 56, // 字形高度(px,1080p 基准;含上下笔画环,视觉主体更小)
+  margin: 48, // 右/下边距,落在照片安全框外留白区
+  color: '#8F8C85',
+  opacity: 0.8,
+  viewBox: {x: 2, y: 2, width: 320, height: 129}, // 按字形实际边界裁剪
+} as const;
+
 export const FONT_FAMILY = {
   ja: `'Noto Serif JP', 'Noto Serif SC', 'Noto Serif', serif`,
   zh: `'Noto Serif SC', 'Noto Serif JP', 'Noto Serif', serif`,

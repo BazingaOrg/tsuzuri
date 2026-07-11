@@ -9,6 +9,7 @@ import {
 } from 'remotion';
 import './fonts';
 import {Photo} from './Photo';
+import {Signature} from './Signature';
 import {Subtitle} from './Subtitle';
 import {ANIMATION, SUBTITLE} from './theme';
 import {getFadeDuration} from './transition';
@@ -86,6 +87,8 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
       {whiteFade > 0 ? (
         <AbsoluteFill style={{backgroundColor: meta.background, opacity: whiteFade}} />
       ) : null}
+      {/* 签名在白场之上:片尾淡出后仍保留落款 */}
+      <Signature scale={scale} />
     </AbsoluteFill>
   );
 };

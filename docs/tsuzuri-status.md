@@ -48,6 +48,7 @@
 - 视觉规格第五次修订(2026-07-11):照片阴影从暖棕改为中性冷黑三层(`rgba(10,12,16,…)`,α 0.32/0.28/0.18,垂直入光),白底上不再偏黄;描边同步中性化。渲染质量:中间帧 `jpegQuality: 100`、输出 `crf: 16`(此前走 Remotion 默认 80/18);音频仍为 AAC 320k 默认。
 - CLI 子命令(2026-07-11):新增 `tsuzuri doctor`(秒级预检 node/uv/ffmpeg/渲染器依赖,analyzer venv 仅提示;不联网、不触发 uv sync)与 `tsuzuri lyrics <folder>`(analyzer 新增 `--lyrics-only`,跳过节拍分析仅识别歌词,LRC 分支用 `librosa.get_duration` 取时长;终端预览含置信度,<0.6 标记为不会渲染)。路由规则:首 token 恰为 `doctor`/`lyrics` 即子命令,路径前缀(`./lyrics`)转义;日常命令 `tsuzuri <folder>` 行为不变。CLI 测试 15→27,analyzer 39→41。
 - README 重写(2026-07-11):标语纳入歌词;去除全文中英双份句(标题双语 + 正文中文);新增 kami 风格架构图 `docs/assets/architecture.svg` 与 Showcase 截图占位(待用户提供);LRC/目录约定折叠进 `<details>`;辅助命令单列一节。
+- 个人签名落款(2026-07-11):Sacramento 手写 SVG 转实心路径内联为 Signature.tsx(方案 A,渲染器内置),常驻右下角(1080p 基准高 56px、边距 48px、#8F8C85 80% 透明),层级在片尾白场之上——淡白后落款保留。SVG 原件字形 bbox 为 viewBox "2 2 320 129"(宽高比 2.5:1);注意 qlmanage 预览该文件会几何失真,勿以缩略图判断比例。
 - 开源与文档完善(2026-07-11):代码 MIT(字体 OFL 1.1 并行,fonts/OFL.txt 已在库);README 增安装指引(brew 一行,不套娃)、首跑预期(模型下载体积 + 渲染耗时)、平台声明(仅 macOS/Apple Silicon 实测)、FAQ 六条、License 节;新增 docs/config.md(tsuzuri.toml 全量参考)与 README.en.md;whisper_backend 在触发 HF 下载前打印模型体积预期。模型不入库:GitHub 100MB 上限 + models/ 约定目录已覆盖离线场景。CLAUDE.md/AGENTS.md 移出版本库。
 
 ## 环境
