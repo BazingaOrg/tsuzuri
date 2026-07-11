@@ -49,6 +49,8 @@ export const INFO_BAR = {
 
 export const ANIMATION = {
   audioFadeDuration: 1.5, // 秒;片尾音频淡出
+  // 镜像见 analyzer/plan.py WHITE_FADE_DURATION——plan 据此为末张照片预留可见时长,
+  // 改这里需要同步改那边
   whiteFadeDuration: 2.5, // 秒;片尾画面淡至白(比音频长,给谢幕语留可读时间)
 } as const;
 
@@ -58,10 +60,14 @@ export const INTRO = {
   color: '#37332D', // 与字幕同级的墨色
   opacity: 0.9,
   strokeWidth: 2.5, // viewBox 单位;书写阶段的笔迹粗细
+  // drawDuration + inkDuration + hold + fadeOut 之和镜像见
+  // analyzer/plan.py INTRO_DURATION——plan 据此把理想切换网格整体右移,
+  // 四者任一变化都需要同步改那边的常量
   drawDuration: 1.4, // 秒;描边沿笔迹画出
   inkDuration: 0.35, // 秒;填充淡入(上墨)
   hold: 0.4, // 秒;写完停留
   fadeOut: 0.5, // 秒;整卡淡出
+  // 镜像见 analyzer/plan.py MIN_PHOTO_VISIBLE
   minPhotoVisible: 0.8, // 秒;第一张照片在片头结束后至少可见时长,不足则跳过片头
 } as const;
 

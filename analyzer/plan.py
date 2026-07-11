@@ -46,6 +46,20 @@ DEPRECATED_KEYS = {"motion", "kenburns_from", "kenburns_to"}
 # 识别段置信度阈值,与渲染层 SUBTITLE.confidenceThreshold 保持一致(LRC 固定为 1.0)
 CONFIDENCE_THRESHOLD = 0.6
 
+# 渲染端片头/片尾遮挡时长镜像——两侧独立维护,改一处需同步另一处:
+#   INTRO_DURATION      <- renderer/src/Intro.tsx introDuration
+#                          (INTRO.drawDuration + inkDuration + hold + fadeOut)
+#   WHITE_FADE_DURATION <- renderer/src/theme.ts ANIMATION.whiteFadeDuration
+#   MIN_PHOTO_VISIBLE   <- renderer/src/Diary.tsx showIntro 规则中的 INTRO.minPhotoVisible
+INTRO_DURATION = 2.65
+WHITE_FADE_DURATION = 2.5
+MIN_PHOTO_VISIBLE = 0.8
+
+# 片头预留生效的最短总时长(与渲染端 showIntro 的判定条件对齐)
+SHOW_INTRO_MIN_T = INTRO_DURATION + WHITE_FADE_DURATION + MIN_PHOTO_VISIBLE  # 5.95
+# 预留生效时,首张照片切换点的下界(经片头覆盖后仍保证可见时长)
+SHOW_INTRO_MIN_PHOTO0_END = INTRO_DURATION + MIN_PHOTO_VISIBLE  # 3.45
+
 DATETIME_ORIGINAL = next(k for k, v in ExifTags.TAGS.items() if v == "DateTimeOriginal")
 
 
@@ -123,7 +137,8 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
             avg = duration / n
             term.info(f"裁剪模式: 歌长图少,在 {duration:.1f}s 重拍处截断并淡出,人均 {avg:.1f}s")
 
-    if avg < cfg["flash_avg_threshold"]:
+    is_flash = avg < cfg["flash_avg_threshold"]
+    if is_flash:
         candidates, min_gap = beats["beats"], cfg["flash_min_gap"]
         term.info(f"快闪模式: 人均 {avg:.1f}s < {cfg['flash_avg_threshold']}s,吸附每拍,min_gap={min_gap}s")
     else:
@@ -134,9 +149,30 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     # (牺牲整体节奏比前奏内多切一刀更伤,取更安全的失败方式)
     not_before = min(float(beats.get("first_strong_onset", 0.0)), duration / n)
 
+    # 片头预留:非快闪且总时长够长(与渲染端 showIntro 判定对齐)时,把理想网格
+    # 整体右移 INTRO_DURATION,并抬高首个切换点下界,保证片头盖完后首张照片仍
+    # 有意义的可见时长。快闪模式天然产出很短的首段(<3s),渲染端会自动跳过片头,
+    # 强行预留反而会挤占本就紧张的切换空间,故不预留。
+    #
+    # n == 2 时只有一个切换点,须同时满足头(>= SHOW_INTRO_MIN_PHOTO0_END)与
+    # 尾(<= duration - WHITE_FADE_DURATION - MIN_PHOTO_VISIBLE)两个约束,可行
+    # 窗口非空要求 duration >= SHOW_INTRO_MIN_T + MIN_PHOTO_VISIBLE(6.75s),
+    # 比 n>=3 时头尾分属不同切换点的门槛(5.95s)更紧;否则窄窗口内找不到候选
+    # 会直接丢弃第二张照片(min_gap 优先于预留,详见 beat_alloc 回退分支)。
+    min_duration_for_reserve = SHOW_INTRO_MIN_T + (MIN_PHOTO_VISIBLE if n == 2 else 0.0)
+    head_offset = 0.0
+    if not is_flash and duration >= min_duration_for_reserve and n >= 2:
+        not_before = max(not_before, SHOW_INTRO_MIN_PHOTO0_END)
+        head_offset = INTRO_DURATION
+
+    # 片尾预留:任何时长都尝试让末张照片在片尾白场开始前留有可见时间,
+    # 但绝不比"均分网格"本该落点更早(allocate_switch_points 内部取 max 兜底)
+    not_after = duration - WHITE_FADE_DURATION - MIN_PHOTO_VISIBLE
+
     switches = allocate_switch_points(
         duration, n, candidates,
         min_gap=min_gap, not_before=not_before,
+        head_offset=head_offset, not_after=not_after,
     )
     if len(switches) < n - 1:
         dropped = n - 1 - len(switches)

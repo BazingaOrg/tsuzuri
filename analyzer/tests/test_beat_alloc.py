@@ -121,3 +121,53 @@ class TestValidation:
     def test_invalid_duration(self):
         with pytest.raises(ValueError):
             allocate_switch_points(0.0, 3, [1.0])
+
+
+class TestHeadReserve:
+    """head_offset:理想网格整体右移,用于片头预留。"""
+
+    def test_zero_offset_matches_baseline(self):
+        # head_offset=0(默认)必须与不传该参数时逐位一致
+        downbeats = [float(t) for t in range(0, 30, 2)]
+        baseline = allocate_switch_points(30.0, 3, downbeats)
+        assert allocate_switch_points(30.0, 3, downbeats, head_offset=0.0) == baseline
+
+    def test_shifts_grid_and_first_visible_segment_is_fair(self):
+        # 30s/3 张,预留 6s 片头:剩余 24s 三等分 → 网格 6+8=14, 6+16=22
+        result = allocate_switch_points(30.0, 3, [], head_offset=6.0)
+        assert result == [14.0, 22.0]
+        # 首张照片"可见"时长(切换点 - head_offset)与其余分段相等
+        assert result[0] - 6.0 == pytest.approx(30.0 - result[-1])
+
+    def test_snap_cap_uses_shifted_step(self):
+        # 半步长按剩余窗口计算:(30-6)/3/2 = 4;候选(9.0)距首个理想点(14)达 5 > 4
+        # → 该候选不被吸附,两个切换点全部回退到网格
+        result = allocate_switch_points(30.0, 3, [9.0], head_offset=6.0)
+        assert result == [14.0, 22.0]
+
+
+class TestTailReserve:
+    """not_after:末个切换点的软上界,用于片尾预留。"""
+
+    def test_never_forces_earlier_than_ideal_grid(self):
+        # 密集分布(理想末位 20 已早于软上界 25)→ not_after 不产生任何收紧
+        downbeats = [float(t) for t in range(0, 30, 2)]
+        assert allocate_switch_points(30.0, 3, downbeats, not_after=25.0) == [10.0, 20.0]
+
+    def test_caps_late_snap_before_tail_fade(self):
+        # 理想末位 20;若不设上界,候选 21.5 会被吸附(距离 1.5 <= 半步长 5)。
+        # not_after=21 应把它排除,回退到未吸附网格时间
+        with_cap = allocate_switch_points(30.0, 3, [9.9, 21.5], not_after=21.0)
+        without_cap = allocate_switch_points(30.0, 3, [9.9, 21.5])
+        assert without_cap == [9.9, 21.5]
+        assert with_cap == [9.9, 20.0]
+
+    def test_min_gap_wins_over_tail_cap_conflict(self):
+        # not_after 被设置得比 min_gap 允许的下界还早 → min_gap 胜出,不丢弃照片
+        result = allocate_switch_points(10.0, 2, [], min_gap=2.0, not_after=1.0)
+        assert result == [5.0]  # 均分网格,not_after 的收紧被 min_gap 下界覆盖
+
+    def test_combined_with_head_offset(self):
+        # 头尾同时预留,互不干扰:30s/3 张,head_offset=6,not_after 明显晚于理想末位
+        result = allocate_switch_points(30.0, 3, [], head_offset=6.0, not_after=29.0)
+        assert result == [14.0, 22.0]  # 理想末位 22 < not_after 29,不生效
