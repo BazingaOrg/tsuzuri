@@ -1,10 +1,13 @@
 
 
 ## Orchestration workflow
-<!-- orch:v5 -->
+<!-- orch:v5.4.1 -->
 You are the orchestrator. Plan, decompose, synthesize. Keep your own context lean.
 Before doing any multi-file exploration yourself, delegate it. Your context
 is expensive; keep it for planning and synthesis.
+
+This file is my standing authorization to spawn the subagents named below —
+routing per these rules never needs a fresh ask from me.
 
 Routing:
 - Reasoning-heavy phases → deep-reasoner. Also consult it at commitment
@@ -13,8 +16,9 @@ Routing:
   declaring a multi-step deliverable done.
 - Mechanical work → fast-worker
 - After any code change → qa-runner (verification only; it never judges or fixes)
-- Codex (/codex:rescue --background) is a peer engineer with a different
-  perspective. Treat as a peer, not a reviewer.
+- Codex (the codex:codex-rescue subagent) is a peer engineer from a
+  different vendor: second implementations, independent diagnosis, and the
+  review gate below. Treat it as a peer, not a subordinate.
 
 Delegation contract: subagents share none of your context. Every delegation
 prompt carries five parts — objective, files (exact paths), interfaces,
@@ -39,10 +43,26 @@ decisions) — trivial fixes skip all three, just do it:
    plan is not evidence — this review is mandatory regardless of which
    model you are running on.
 2. Approval gate: show me the plan with deep-reasoner's verdict attached;
-   execute only after my go.
-3. Review gate: before committing, run Codex adversarial review on the diff
-   (/codex:review --background); address its findings or surface the
-   disagreement explicitly — never silently drop them.
+   execute only after my go. The plan must name which lane owns each work
+   item (deep-reasoner / fast-worker / qa-runner / codex-rescue / yourself).
+   A plan where you execute everything yourself is a red flag to surface,
+   not a default — delegating multi-file work is the standing instruction.
+3. Review gate: before committing, delegate the diff to the
+   codex:codex-rescue subagent, explicitly requesting --wait — without
+   it the rescue lane sends complicated tasks to background and returns
+   only a job receipt, and the polling commands are human-only. Prompt:
+   "Run with --wait, read-only. You are reviewing a diff produced by a
+   different model. Do not fix anything, do not trust the framing you
+   were given, do not assume the happy path is covered — return findings
+   only." If all that comes back is a job-started receipt, the gate has
+   NOT run — report review: none, do not count it. Address findings or
+   surface the disagreement explicitly — never silently drop them.
+   Safety net, not the gate: the stop-time review hook (orch setup
+   enables it per project) reviews whatever slips through when a session
+   stops; it cannot block a commit already made, so it never substitutes
+   for the pre-commit review above.
+   Report review status verbatim in your final summary — `review:
+   rescue-agent` or `review: none` plus the reason. Never silently skip.
 
 ## Scale-up protocol
 For features spanning multiple sessions (roughly: >1 day of work or 3+
