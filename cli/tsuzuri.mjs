@@ -93,7 +93,10 @@ const main = () => {
   const folder = path.resolve(folderArg);
   if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) throw new CliError(`不是文件夹: ${folder}`);
 
-  const {photos, audio, lyrics} = scanFolder(folder);
+  const {photos, audio, lyrics, videos} = scanFolder(folder);
+  if (videos.length > 0) {
+    term.warn(`发现视频文件,tsuzuri 目前只处理照片,已忽略: ${videos.join(', ')}`);
+  }
   const project = resolveProjectPaths(folder, output);
   ensureProjectDirs(project);
   const copied = copyLegacyJson(folder, project.metadataDir);
