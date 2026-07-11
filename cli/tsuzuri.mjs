@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import {CliError, parseArgs} from './options.mjs';
+import {CliError, USAGE, parseArgs} from './options.mjs';
 import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
 import {runDoctor} from './doctor.mjs';
 import {runLyrics} from './lyrics.mjs';
@@ -82,6 +82,10 @@ const normalizeLoudness = (file) => {
 
 const main = () => {
   const parsed = parseArgs(process.argv.slice(2));
+  if (parsed.command === 'help') {
+    console.log(USAGE);
+    return 0;
+  }
   if (parsed.command === 'doctor') return runDoctor();
   if (parsed.command === 'lyrics') return runLyrics(parsed.folder);
 

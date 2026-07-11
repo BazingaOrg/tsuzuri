@@ -1,12 +1,13 @@
 export class CliError extends Error {}
 
-const USAGE =
+export const USAGE =
   '用法:\n' +
   '  tsuzuri <folder> [-o out.mp4]   渲染相册视频(默认命令)\n' +
   '  tsuzuri doctor                  检查依赖是否就绪\n' +
   '  tsuzuri lyrics <folder>         只识别歌词并预览(不渲染)\n' +
+  '  tsuzuri help                    显示本说明(同 -h / --help)\n' +
   '目录约定:文件夹内放照片(jpg/png/webp)+ 唯一的音频文件(mp3 等)\n' +
-  '若文件夹名恰好叫 doctor / lyrics,用路径前缀转义,如 tsuzuri ./lyrics';
+  '若文件夹名恰好叫 doctor / lyrics / help,用路径前缀转义,如 tsuzuri ./lyrics';
 
 const parseRenderArgs = (argv) => {
   const args = {command: 'render', folder: null, output: null};
@@ -54,14 +55,15 @@ const parseLyricsArgs = (rest) => {
 };
 
 /**
- * A leading token exactly equal to `doctor` or `lyrics` is always the verb.
- * Any path-qualified token (`./lyrics`, `/abs/path`, ...) is not a bare `lyrics`/`doctor`
+ * A leading token exactly equal to `doctor`, `lyrics` or `help` is always the verb.
+ * Any path-qualified token (`./lyrics`, `/abs/path`, ...) is not a bare verb
  * string, so it never matches here and falls through to the render command —
- * that's the escape hatch for a folder that happens to be named `doctor`/`lyrics`.
+ * that's the escape hatch for a folder that happens to be named after a verb.
  */
 export const parseArgs = (argv) => {
   const [first, ...rest] = argv;
   if (first === 'doctor') return parseDoctorArgs(rest);
   if (first === 'lyrics') return parseLyricsArgs(rest);
+  if (first === 'help' || first === '-h' || first === '--help') return {command: 'help'};
   return parseRenderArgs(argv);
 };

@@ -35,9 +35,16 @@ test('lyrics does not accept -o', () => {
   assert.throws(() => parseArgs(['lyrics', 'album', '-o', 'out.mp4']), /不支持 -o/);
 });
 
-test('a path-qualified folder named doctor/lyrics is the escape hatch, not a verb', () => {
+test('a leading `help` token (or -h / --help) routes to the help command', () => {
+  assert.deepEqual(parseArgs(['help']), {command: 'help'});
+  assert.deepEqual(parseArgs(['-h']), {command: 'help'});
+  assert.deepEqual(parseArgs(['--help']), {command: 'help'});
+});
+
+test('a path-qualified folder named doctor/lyrics/help is the escape hatch, not a verb', () => {
   assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null});
   assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null});
+  assert.deepEqual(parseArgs(['./help']), {command: 'render', folder: './help', output: null});
   assert.deepEqual(parseArgs(['/abs/path/lyrics']), {
     command: 'render',
     folder: '/abs/path/lyrics',
