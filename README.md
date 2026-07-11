@@ -59,12 +59,17 @@ LRC 支持 `[mm:ss.xx]`、同行多时间戳、`[offset:±ms]`、空时间行清
 
 </details>
 
-## Auxiliary commands / 辅助命令
+## Commands / 命令速查
 
-| 命令 | 用途 |
-| --- | --- |
-| `node cli/tsuzuri.mjs doctor` | 预检 Node / uv / FFmpeg / 渲染器依赖,每个失败项附确切修复命令 |
-| `node cli/tsuzuri.mjs lyrics <folder>` | 只跑歌词识别并预览(时间戳 + 文本 + 置信度),低于渲染阈值的行会标出——渲染前先确认识别质量 |
+```bash
+node cli/tsuzuri.mjs ./osaka-trip               # 渲染成片(唯一日常命令)
+node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # 自定义输出路径
+node cli/tsuzuri.mjs doctor                     # 预检依赖,失败项附修复命令
+node cli/tsuzuri.mjs lyrics ./osaka-trip        # 渲染前预览歌词识别结果
+node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
+```
+
+`lyrics` 会列出每行的时间戳与置信度,低于渲染阈值(0.6)的行会标出——先确认识别质量,再花时间渲染。
 
 ## 100% local / 完全本地
 
