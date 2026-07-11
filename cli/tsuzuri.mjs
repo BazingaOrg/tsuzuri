@@ -1,74 +1,39 @@
 #!/usr/bin/env node
 /**
- * tsuzuri CLI — 唯一的日常命令:`tsuzuri ./folder`
+ * tsuzuri CLI — 日常入口:`tsuzuri ./folder`
  *
- * 约定优于配置:文件夹内的图片 + 唯一音频即全部输入;
- * 输出 <folder名>.mp4 与副产物 timeline.json 落在同一文件夹。
- * 仅保留 -o(改输出路径)。其余全部自动决策,见 docs/tsuzuri-implementation-plan.md 第六节。
+ * 约定优于配置:文件夹内的图片 + 唯一音频是必需输入,可选唯一 LRC;
+ * JSON 写入 metadata/,默认视频写入 output/。
+ * -o 可覆盖输出路径,其余选项按素材自动决策。
  */
 
-import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+import {CliError, parseArgs} from './options.mjs';
+import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
+import {runDoctor} from './doctor.mjs';
+import {runLyrics} from './lyrics.mjs';
+import {term} from './term.mjs';
+
 const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.wav', '.flac', '.aac', '.ogg']);
 
-const TTY = process.stdout.isTTY && !process.env.NO_COLOR;
-const c = (code, s) => (TTY ? `\x1b[${code}m${s}\x1b[0m` : s);
-const dim = (s) => c('2', s);
-const cyan = (s) => c('36', s);
-const green = (s) => c('1;32', s);
-const yellow = (s) => c('33', s);
-const red = (s) => c('1;31', s);
-
-const die = (msg) => {
-  console.error(red(`tsuzuri: ${msg}`));
-  process.exit(1);
-};
-
-const parseArgs = (argv) => {
-  const args = {folder: null, output: null};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '-o' || argv[i] === '--output') args.output = argv[++i];
-    else if (!args.folder) args.folder = argv[i];
-    else die(`未知参数: ${argv[i]}(用法: tsuzuri <folder> [-o out.mp4])`);
-  }
-  if (!args.folder) die('用法: tsuzuri <folder> [-o out.mp4]\n目录约定:文件夹内放照片(jpg/png/webp)+ 唯一的音频文件(mp3 等)');
-  return args;
-};
-
-const scanFolder = (folder) => {
-  const entries = fs.readdirSync(folder).filter((f) => !f.startsWith('.'));
-  const photos = entries.filter((f) => IMAGE_EXTS.has(path.extname(f).toLowerCase())).sort();
-  const audios = entries.filter((f) => AUDIO_EXTS.has(path.extname(f).toLowerCase()));
-  if (audios.length > 1) die(`文件夹里有多个音频,只能有一个:\n  ${audios.join('\n  ')}`);
-  if (audios.length === 0) die(`没有找到音频文件。目录约定:照片 + 唯一的音频文件(${[...AUDIO_EXTS].join(' ')})`);
-  if (photos.length === 0) die(`没有找到图片。目录约定:照片(${[...IMAGE_EXTS].join(' ')})+ 唯一的音频文件`);
-  return {photos, audio: audios[0]};
-};
-
-// 输入 hash:音频 + 全部照片 + tsuzuri.toml 的内容摘要,
-// 用于区分"用户手改了 timeline"(跳过分析直接渲染)和"素材变了"(重新规划)
-const inputHash = (folder, files) => {
-  const h = createHash('sha256');
-  for (const f of [...files].sort()) {
-    h.update(f + '\0');
-    h.update(fs.readFileSync(path.join(folder, f)));
-  }
-  return h.digest('hex').slice(0, 16);
-};
-
-const run = (cmd, args, opts = {}) => {
+const run = (stage, cmd, args, opts = {}) => {
   const r = spawnSync(cmd, args, {stdio: 'inherit', ...opts});
-  if (r.error) die(`无法执行 ${cmd}: ${r.error.message}`);
-  if (r.status !== 0) process.exit(r.status ?? 1);
+  if (r.error) {
+    term.error(`${stage}失败: 无法执行 ${cmd}: ${r.error.message}`);
+    return 1;
+  }
+  if (r.status !== 0) {
+    const code = r.status ?? 1;
+    term.error(`${stage}失败(退出码 ${code})`);
+    return code;
+  }
+  return 0;
 };
 
-// ---- 响度归一:成片统一到流媒体参考响度,线性增益保留音乐动态 ----
 const TARGET_LUFS = -14;
 const TARGET_TP = -1.5;
 
@@ -81,14 +46,21 @@ const normalizeLoudness = (file) => {
     '-f', 'null', '-',
   ]);
   const match = probe.stderr?.match(/\{[\s\S]*?\}/);
-  if (probe.error || !match) {
-    console.log(yellow('loudness: 测量失败,保留原始响度'));
+  if (probe.error || probe.status !== 0 || !match) {
+    term.warn('响度测量失败,保留原始响度');
     return;
   }
-  const m = JSON.parse(match[0]);
+  let m;
+  try {
+    m = JSON.parse(match[0]);
+  } catch {
+    term.warn('响度测量结果无法解析,保留原始响度');
+    return;
+  }
   const measured = parseFloat(m.input_i);
   if (Math.abs(measured - TARGET_LUFS) <= 1.0 && parseFloat(m.input_tp) <= -1.0) {
-    console.log(dim(`loudness: ${measured.toFixed(1)} LUFS,已接近 ${TARGET_LUFS},跳过归一`));
+    term.success('响度已符合目标,无需调整');
+    term.detail(`${measured.toFixed(1)} LUFS,目标 ${TARGET_LUFS} LUFS`);
     return;
   }
   const tmp = `${file}.loudnorm.mp4`;
@@ -100,61 +72,112 @@ const normalizeLoudness = (file) => {
   const enc = ffmpegQuiet(['-y', '-i', file, '-c:v', 'copy', '-af', af, '-c:a', 'aac', '-b:a', '256k', tmp]);
   if (enc.error || enc.status !== 0 || !fs.existsSync(tmp)) {
     fs.rmSync(tmp, {force: true});
-    console.log(yellow('loudness: 归一失败,保留原始响度'));
+    term.warn('响度归一失败,保留原始响度');
     return;
   }
   fs.renameSync(tmp, file);
-  console.log(dim(`loudness: ${measured.toFixed(1)} → ${TARGET_LUFS} LUFS(真峰值 ≤ ${TARGET_TP}dB)`));
+  term.success('响度归一完成');
+  term.detail(`${measured.toFixed(1)} → ${TARGET_LUFS} LUFS(真峰值 ≤ ${TARGET_TP}dB)`);
 };
 
 const main = () => {
-  const {folder: folderArg, output} = parseArgs(process.argv.slice(2));
-  const folder = path.resolve(folderArg);
-  if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) die(`不是文件夹: ${folder}`);
+  const parsed = parseArgs(process.argv.slice(2));
+  if (parsed.command === 'doctor') return runDoctor();
+  if (parsed.command === 'lyrics') return runLyrics(parsed.folder);
 
-  const {photos, audio} = scanFolder(folder);
+  const {folder: folderArg, output} = parsed;
+  const folder = path.resolve(folderArg);
+  if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) throw new CliError(`不是文件夹: ${folder}`);
+
+  const {photos, audio, lyrics} = scanFolder(folder);
+  const project = resolveProjectPaths(folder, output);
+  ensureProjectDirs(project);
+  const copied = copyLegacyJson(folder, project.metadataDir);
+  if (copied.length > 0) {
+    term.warn(`已复制旧版 JSON 到 metadata/: ${copied.join(', ')}(原文件保留)`);
+  }
+
   const hashFiles = [audio, ...photos];
   if (fs.existsSync(path.join(folder, 'tsuzuri.toml'))) hashFiles.push('tsuzuri.toml');
-  const hash = inputHash(folder, hashFiles);
+  if (lyrics) hashFiles.push(lyrics);
+  const hash = computeInputHash(folder, hashFiles);
 
-  const timelinePath = path.join(folder, 'timeline.json');
+  const timelinePath = project.timelinePath;
   let skipPlan = false;
   if (fs.existsSync(timelinePath)) {
     try {
       const existing = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
       if (existing?.meta?.input_hash === hash) {
         skipPlan = true;
-        console.log(yellow('输入未变 → 跳过分析,直接渲染现有 timeline.json(手改生效)'));
+        term.warn('输入未变,跳过分析与规划,直接渲染现有 timeline.json(手改生效)');
       } else {
-        console.log(dim(existing?.meta?.input_hash ? '素材有变化 → 重新分析规划' : 'timeline.json 缺少 input_hash → 重新分析规划'));
+        term.detail(existing?.meta?.input_hash ? '素材有变化,重新分析规划' : 'timeline.json 缺少 input_hash,重新分析规划');
       }
     } catch {
-      console.log(dim('timeline.json 无法解析 → 重新分析规划'));
+      term.detail('timeline.json 无法解析,重新分析规划');
     }
   }
 
   if (!skipPlan) {
     const analyzer = path.join(REPO, 'analyzer');
-    run('uv', ['run', '--project', analyzer, 'tsuzuri-analyze', path.join(folder, audio)]);
-    run('uv', ['run', '--project', analyzer, 'tsuzuri-plan', folder, '--input-hash', hash]);
+    term.start('分析音频');
+    const analyzeArgs = [
+      'run', '--project', analyzer, 'tsuzuri-analyze', path.join(folder, audio),
+      '-o', project.beatsPath,
+      '--lyrics-output', project.lyricsPath,
+    ];
+    if (lyrics) analyzeArgs.push('--lyrics-file', path.join(folder, lyrics));
+    let code = run('分析音频', 'uv', analyzeArgs);
+    if (code !== 0) return code;
+    term.success('音频分析完成');
+
+    term.start('规划照片时间线');
+    code = run('规划照片时间线', 'uv', [
+      'run', '--project', analyzer, 'tsuzuri-plan', folder,
+      '--beats', project.beatsPath,
+      '--lyrics', project.lyricsPath,
+      '--input-hash', hash,
+      '-o', project.timelinePath,
+    ]);
+    if (code !== 0) return code;
+    term.success('照片时间线规划完成');
   }
 
-  // 渲染前打印计划摘要(不询问确认,直接开始)
   const tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   const n = tl.photos.length;
-  console.log(`${cyan('photos')} : ${n} 张,人均 ${(tl.meta.duration / n).toFixed(1)}s`);
-  console.log(`${cyan('audio ')} : ${tl.meta.audio.replace(/^\.\//, '')},${Math.round(tl.meta.duration)}s`);
-  console.log(`${cyan('lyrics')} : ${tl.subtitles.length > 0 ? `${tl.subtitles.length} 行` : '无(纯音乐或未识别)'}`);
+  term.info('渲染计划');
+  term.detail(
+    `照片: ${n} 张,人均 ${(tl.meta.duration / n).toFixed(1)}s\n` +
+      `音频: ${tl.meta.audio.replace(/^\.\//, '')},${Math.round(tl.meta.duration)}s\n` +
+      `歌词: ${tl.subtitles.length > 0 ? `${tl.subtitles.length} 行` : '无(纯音乐或未识别)'}`,
+  );
 
-  const outPath = path.resolve(output ?? path.join(folder, `${path.basename(folder)}.mp4`));
-  // 直接用 node 调 Remotion CLI 入口:避开 npx(Windows 上 .cmd 无法无 shell 派生)
-  const remotionCli = path.join(REPO, 'renderer', 'node_modules', '@remotion', 'cli', 'remotion-cli.js');
-  if (!fs.existsSync(remotionCli)) die('渲染器依赖未安装,先执行: cd renderer && npm install');
-  run(process.execPath, [remotionCli, 'render', 'Diary', outPath, `--props=${timelinePath}`, `--public-dir=${folder}`], {
-    cwd: path.join(REPO, 'renderer'),
-  });
+  const outPath = project.outputPath;
+  const rendererPackage = path.join(REPO, 'renderer', 'node_modules', '@remotion', 'renderer');
+  if (!fs.existsSync(rendererPackage)) throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
+
+  term.start('渲染视频');
+  const renderCode = run('渲染视频', process.execPath, [
+    path.join(REPO, 'cli', 'render.mjs'),
+    timelinePath,
+    outPath,
+    folder,
+  ]);
+  if (renderCode !== 0) return renderCode;
+  term.success('视频渲染完成');
+
+  term.start('检查成片响度');
   normalizeLoudness(outPath);
-  console.log(green(`✓ 完成 -> ${outPath}`));
+  term.success(`完成 → ${outPath}`);
+  return 0;
 };
 
-main();
+const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+if (isMain) {
+  try {
+    process.exitCode = main();
+  } catch (error) {
+    term.error(`tsuzuri: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}
