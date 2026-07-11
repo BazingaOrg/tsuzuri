@@ -1,4 +1,4 @@
-"""beat_alloc 单元测试:固定 beats 输入断言输出(M3 验收项)。"""
+"""beat_alloc 单元测试:固定 beats 输入断言输出。"""
 
 import pytest
 
