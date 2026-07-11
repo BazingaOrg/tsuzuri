@@ -39,6 +39,7 @@ node cli/tsuzuri.mjs ./osaka-trip
 | 快闪模式 | 人均展示 < 2s → 逐拍切换 |
 | 歌长图少 | 人均 > 10s → 在重拍处截断歌曲 + 淡出收尾 |
 | 微调重渲 | 手改 `metadata/timeline.json` 后重跑,跳过分析直接渲染 |
+| 片头片尾 | 开场手写签名写入 + 片尾 Thanks for watching;首图展示过短自动跳过片头 |
 | 响度 | 成片归一到 −14 LUFS(TP −1.5 dB) |
 
 文件夹内可放 `tsuzuri.toml` 覆盖默认值(分辨率 / 帧率 / 过渡 / 快闪与裁歌阈值 / 字幕开关 …),全部配置项见 [docs/config.md](docs/config.md)。

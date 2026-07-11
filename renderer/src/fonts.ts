@@ -2,20 +2,19 @@ import {cancelRender, continueRender, delayRender} from 'remotion';
 import notoSerifJP from './fonts/NotoSerifJP-VF.ttf';
 import notoSerifSC from './fonts/NotoSerifSC-VF.ttf';
 import notoSerif from './fonts/NotoSerif-VF.ttf';
+import sacramento from './fonts/Sacramento-Regular.ttf';
 
 // 字体随 bundle 打包(webpack asset/resource),不走 public dir——
 // CLI 渲染时 public dir 指向用户素材文件夹,不能依赖它存放字体。
 
-const loadFont = (family: string, url: string) => {
+const loadFont = (family: string, url: string, descriptors?: FontFaceDescriptors, format = 'truetype-variations') => {
   if (typeof document === 'undefined') return;
   // CJK 变量字体 13–25MB,渲染多页并发时解析可能远超默认 30s 超时
   const handle = delayRender(`loading font ${family}`, {
     timeoutInMilliseconds: 180_000,
     retries: 2,
   });
-  const face = new FontFace(family, `url(${url}) format('truetype-variations')`, {
-    weight: '200 900',
-  });
+  const face = new FontFace(family, `url(${url}) format('${format}')`, descriptors);
   face
     .load()
     .then(() => {
@@ -26,6 +25,8 @@ const loadFont = (family: string, url: string) => {
     .catch((err) => cancelRender(err));
 };
 
-loadFont('Noto Serif JP', notoSerifJP);
-loadFont('Noto Serif SC', notoSerifSC);
-loadFont('Noto Serif', notoSerif);
+loadFont('Noto Serif JP', notoSerifJP, {weight: '200 900'});
+loadFont('Noto Serif SC', notoSerifSC, {weight: '200 900'});
+loadFont('Noto Serif', notoSerif, {weight: '200 900'});
+// 静态单字重手写体(片尾谢幕语),非变量字体
+loadFont('Sacramento', sacramento, {weight: 'normal'}, 'truetype');

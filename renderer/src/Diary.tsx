@@ -8,10 +8,10 @@ import {
   useVideoConfig,
 } from 'remotion';
 import './fonts';
+import {Intro, introDuration} from './Intro';
 import {Photo} from './Photo';
-import {Signature} from './Signature';
 import {Subtitle} from './Subtitle';
-import {ANIMATION, SUBTITLE} from './theme';
+import {ANIMATION, INTRO, OUTRO, SUBTITLE} from './theme';
 import {getFadeDuration} from './transition';
 import type {PhotoClip, Timeline} from './types';
 
@@ -55,17 +55,25 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
       t <= l.end + SUBTITLE.fadeOutDuration + 1 / fps,
   );
 
-  // 收尾:音频末尾 1.5s 淡出,画面同步淡至白。
-  // 下界钳到 0,防止短于 1.5s 的合成从首帧就开始泛白/压音量
-  const fadeFrames = Math.round(ANIMATION.endingFadeDuration * fps);
-  const fadeStart = Math.max(0, durationInFrames - fadeFrames);
-  const whiteFade = interpolate(frame, [fadeStart, durationInFrames - 1], [0, 1], clamp);
+  // 收尾:音频淡出与画面淡白各自计时(白场更长,给谢幕语留可读时间)。
+  // 下界钳到 0,防止过短的合成从首帧就开始泛白/压音量
+  const audioFadeStart = Math.max(0, durationInFrames - Math.round(ANIMATION.audioFadeDuration * fps));
+  const whiteFadeStart = Math.max(0, durationInFrames - Math.round(ANIMATION.whiteFadeDuration * fps));
+  const whiteFade = interpolate(frame, [whiteFadeStart, durationInFrames - 1], [0, 1], clamp);
+
+  // 片头跳过规则:第一张照片被盖太多,或总时长短到片头会撞上片尾白场
+  const showIntro =
+    photos.length > 0 &&
+    photos[0].end >= introDuration + INTRO.minPhotoVisible &&
+    durationInFrames / fps >= introDuration + ANIMATION.whiteFadeDuration + INTRO.minPhotoVisible;
+
+  const outroOpacity = interpolate(whiteFade, [...OUTRO.fadeRange], [0, 1], clamp);
 
   return (
     <AbsoluteFill style={{backgroundColor: meta.background}}>
       <Audio
         src={staticFile(meta.audio.replace(/^\.\//, ''))}
-        volume={(f) => interpolate(f, [fadeStart, durationInFrames - 1], [1, 0], clamp)}
+        volume={(f) => interpolate(f, [audioFadeStart, durationInFrames - 1], [1, 0], clamp)}
       />
       {visiblePhotos.map(({clip, index}) => (
         <Photo
@@ -87,8 +95,27 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
       {whiteFade > 0 ? (
         <AbsoluteFill style={{backgroundColor: meta.background, opacity: whiteFade}} />
       ) : null}
-      {/* 签名在白场之上:片尾淡出后仍保留落款 */}
-      <Signature scale={scale} />
+      {/* 谢幕语:白场过半后浮现,持续到最后一帧 */}
+      {outroOpacity > 0 ? (
+        <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center'}}>
+          <div
+            style={{
+              fontFamily: OUTRO.fontFamily,
+              fontSize: OUTRO.fontSize * scale,
+              color: OUTRO.color,
+              opacity: outroOpacity,
+              transform: `translateY(${(1 - outroOpacity) * OUTRO.riseDistance * scale}px)`,
+            }}
+          >
+            {OUTRO.text}
+          </div>
+        </AbsoluteFill>
+      ) : null}
+      {/* 片头写签名:盖在一切之上,淡出后露出已在播放的第一页。
+          按帧比较,避免浮点求和导致收尾帧(opacity 归零帧)被提前跳过 */}
+      {showIntro && frame <= Math.round(introDuration * fps) ? (
+        <Intro backgroundColor={meta.background} scale={scale} />
+      ) : null}
     </AbsoluteFill>
   );
 };

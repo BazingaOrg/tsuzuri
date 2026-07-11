@@ -48,16 +48,29 @@ export const INFO_BAR = {
 } as const;
 
 export const ANIMATION = {
-  endingFadeDuration: 1.5, // 秒;音频淡出 + 画面淡至白
+  audioFadeDuration: 1.5, // 秒;片尾音频淡出
+  whiteFadeDuration: 2.5, // 秒;片尾画面淡至白(比音频长,给谢幕语留可读时间)
 } as const;
 
-export const SIGNATURE = {
-  // 右下角落款:低两级于字幕的存在感;片尾淡白后保留(层级在白场之上)
-  height: 56, // 字形高度(px,1080p 基准;含上下笔画环,视觉主体更小)
-  margin: 48, // 右/下边距,落在照片安全框外留白区
-  color: '#8F8C85',
-  opacity: 0.8,
-  viewBox: {x: 2, y: 2, width: 320, height: 129}, // 按字形实际边界裁剪
+export const INTRO = {
+  // 片头:白画布上手写签名居中"写"出,随后整卡淡出露出第一张照片
+  height: 120, // 签名字形高度(px,1080p 基准)
+  color: '#37332D', // 与字幕同级的墨色
+  opacity: 0.9,
+  writeDuration: 1.4, // 秒;从左到右运笔揭开
+  hold: 0.7, // 秒;写完停留
+  fadeOut: 0.5, // 秒;整卡淡出
+  minPhotoVisible: 0.8, // 秒;第一张照片在片头结束后至少可见时长,不足则跳过片头
+} as const;
+
+export const OUTRO = {
+  // 片尾谢幕语:白场过半后居中浮现,持续到最后一帧
+  text: 'Thanks for watching',
+  fontSize: 64,
+  color: '#37332D',
+  fontFamily: `'Sacramento', cursive`,
+  fadeRange: [0.5, 0.85] as const, // 随白场进度淡入的区间
+  riseDistance: 6,
 } as const;
 
 export const FONT_FAMILY = {
