@@ -23,6 +23,15 @@ import term
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# 首次下载的体积预期(HF 仓库近似值),下载前提示用,不必精确
+_DOWNLOAD_SIZE_HINTS = {
+    "tiny": "75 MB",
+    "base": "145 MB",
+    "small": "500 MB",
+    "medium": "1.5 GB",
+    "large-v3": "3 GB",
+}
+
 def _local_model_dir(backend: str, model: str) -> Path | None:
     """本地模型目录查找:env 指定的路径 > 仓库 models/ 约定目录 > 无(走 HF 下载)。
 
@@ -161,6 +170,11 @@ def transcribe(audio: Path) -> tuple[str, list[Segment], str]:
     local_dir = _local_model_dir(backend, model)
     if local_dir is None:
         ensure_hf_reachable()
+        approx = _DOWNLOAD_SIZE_HINTS.get(model, "数百 MB")
+        term.info(
+            f"模型 {model} 如本机未缓存将自动下载(约 {approx},仅首次;"
+            "提前放入仓库 models/ 目录可完全离线)"
+        )
     else:
         term.detail(f"whisper model: 本地 {local_dir}")
 
