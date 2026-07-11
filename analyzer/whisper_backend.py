@@ -1,4 +1,4 @@
-"""Whisper 后端探测与统一接口(实现方案第五节,零决策)。
+"""Whisper 后端探测与统一接口。
 
 优先级:mlx(arm64 Mac 且可导入)→ faster-whisper CUDA float16 → faster-whisper CPU int8。
 三后端收敛到 transcribe(audio) -> (language, [Segment]);探测结果打印一行日志。
@@ -148,12 +148,12 @@ def _confidence(avg_logprob: float) -> float:
 def transcribe(audio: Path) -> tuple[str, list[Segment], str]:
     """统一转写接口。返回 (language, segments, backend_desc)。
 
-    word-level timestamps 开启(为后续卡拉OK式字幕预留),当前只消费段级。
+    word-level timestamps 用于控制歌词行长和断句。
     no_speech_prob > 0.6 的段直接丢弃(Whisper 在音乐场景会幻觉编词,宁可漏不可错)。
     """
     backend, model = _pick_backend()
     desc = f"{backend} / {model}"
-    print(term.dim(f"whisper backend: {desc}"))
+    term.detail(f"whisper backend: {desc}")
 
     # 本地模型:TSUZURI_WHISPER_MODEL 指向目录,或放在仓库 models/ 约定目录,
     # 均跳过联网;否则从 HF 下载(mlx:weights.npz + config.json;
@@ -162,7 +162,7 @@ def transcribe(audio: Path) -> tuple[str, list[Segment], str]:
     if local_dir is None:
         ensure_hf_reachable()
     else:
-        print(term.dim(f"whisper model: 本地 {local_dir}"))
+        term.detail(f"whisper model: 本地 {local_dir}")
 
     if backend == "mlx":
         import mlx_whisper
