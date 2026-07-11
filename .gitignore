@@ -3,6 +3,7 @@ node_modules/
 
 # Remotion render output
 renderer/out/
+.remotion/
 
 # Python
 __pycache__/
