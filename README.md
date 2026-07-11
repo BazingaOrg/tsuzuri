@@ -1,69 +1,82 @@
 # tsuzuri(綴り)
 
-> Turn photos and a song into a beat-synced visual diary. Fully local: beat detection, smart cut planning, lyric transcription, and a clean white-canvas 16:9 render with gallery-style captions — one command, no editor.
+> Photos + a song (+ optional lyrics) → a beat-synced visual diary. One command, fully local.
 >
-> 把照片和一首歌缀成踩点影像日记:本地节拍分析、智能规划切换、歌词识别、画册式字幕,一条命令导出成片,无需剪辑软件。
+> 照片 + 一首歌(+ 可选歌词),缀成踩点影像日记。一条命令,全程本地,无需剪辑软件。
 
 綴る:缀写日记、装订相册 — 写真を音で綴る。
+
+## Showcase / 效果
+
+<!-- 截图占位:1) 成片画面(照片 + 画展式字幕) 2) 终端一条命令跑完的输出 -->
+*效果图待补充。*
 
 ## Quick start / 快速开始
 
 ```bash
-# Prerequisites / 依赖:Node 18+, uv, FFmpeg
+# 依赖:Node 18+ · uv · FFmpeg
 cd renderer && npm install && cd ..
+node cli/tsuzuri.mjs doctor          # 可选:秒级预检依赖,缺什么直接给修复命令
 
-# Put photos + ONE audio file in a folder, then / 照片 + 唯一音频放进文件夹:
+# 素材文件夹 = 若干照片 + 唯一音频 + 可选一份 .lrc
 node cli/tsuzuri.mjs ./osaka-trip
-# → ./osaka-trip/osaka-trip.mp4
+# → ./osaka-trip/output/osaka-trip.mp4
 ```
 
-That's the only command. No flags to learn (`-o` to change the output path is the single exception). Everything else is decided automatically:
+日常只有这一条命令,唯一的 flag 是 `-o <path>` 改输出路径。其余全部自动决策:
 
-这是唯一的日常命令,零决策设计,其余全部自动:
-
-| Decision / 决策 | Auto rule / 自动规则 |
+| 决策 | 自动规则 |
 | --- | --- |
-| Photo order / 照片顺序 | EXIF time first, filename fallback / EXIF 拍摄时间优先,无则文件名 |
-| Subtitles / 字幕 | Whisper transcribes locally; pure music → skipped / 本地识别,纯音乐自动跳过 |
-| Flash mode / 快闪 | avg display < 2s → snap to every beat / 人均 < 2s 自动切换 |
-| Long song / 歌长图少 | avg > 10s → cut at a downbeat near target + fade / 重拍处截断 + 淡出 |
-| Re-render / 微调重渲 | hand-edit `timeline.json`, rerun → skips analysis / 手改后重跑直接渲染 |
-| Loudness / 响度 | normalized to −14 LUFS, TP −1.5 dB (linear gain) / 成片归一到流媒体参考响度 |
+| 照片顺序 | EXIF 拍摄时间优先,无则按文件名 |
+| 字幕 | `.lrc` 优先;否则本地 Whisper 识别;纯音乐自动跳过 |
+| 快闪模式 | 人均展示 < 2s → 逐拍切换 |
+| 歌长图少 | 人均 > 10s → 在重拍处截断歌曲 + 淡出收尾 |
+| 微调重渲 | 手改 `metadata/timeline.json` 后重跑,跳过分析直接渲染 |
+| 响度 | 成片归一到 −14 LUFS(TP −1.5 dB) |
 
-Optional `tsuzuri.toml` in the folder overrides defaults (`photo_scale`, `min_gap`, …).
+文件夹内可放 `tsuzuri.toml` 覆盖默认值(`photo_scale`、`min_gap`、`transition` …)。
 
 ## How it works / 工作原理
 
-```
-photos/ + music.mp3
-   │  analyze (Python: librosa beats + Whisper lyrics)
-   ▼  beats.json, lyrics.json
-   │  plan (Python: greedy beat-snap allocation)
-   ▼  timeline.json          ← the contract, hand-editable
-   │  render (Remotion/React, 1920×1080@60, Noto Serif JP/SC/Latin)
-   ▼  output.mp4
+![tsuzuri pipeline](docs/assets/architecture.svg)
+
+Analyze / Plan / Render 三个阶段彼此独立,只通过 `metadata/` 下的 JSON 文件衔接;`timeline.json` 是可手改的契约(schema 见 [docs/specs/timeline-schema.md](docs/specs/timeline-schema.md)),素材未变时重跑会跳过分析、直接按改后的时间线渲染。
+
+<details>
+<summary>文件夹约定与 LRC 细节 / Folder contract &amp; LRC notes</summary>
+
+```text
+osaka-trip/
+├── photo-01.jpg …             # .jpg .jpeg .png .webp
+├── music.mp3                  # 唯一音频:.mp3 .m4a .wav .flac .aac .ogg
+├── lyrics.lrc                 # 可选;UTF-8/BOM 行级 LRC
+├── metadata/                  # 生成物:beats.json / lyrics.json / timeline.json
+└── output/
+    └── osaka-trip.mp4
 ```
 
-Three independent stages talk through JSON files — see [docs/specs/timeline-schema.md](docs/specs/timeline-schema.md). This keeps every stage swappable and agent-ready.
+LRC 支持 `[mm:ss.xx]`、同行多时间戳、`[offset:±ms]`、空时间行清除字幕;多份 `.lrc` 或同一时间戳配不同文本会明确报错。旧版根目录 JSON 会自动复制进 `metadata/`,原件保留。
 
-三阶段独立、以 JSON 文件为契约,为后续 agent 化预留。
+</details>
+
+## Auxiliary commands / 辅助命令
+
+| 命令 | 用途 |
+| --- | --- |
+| `node cli/tsuzuri.mjs doctor` | 预检 Node / uv / FFmpeg / 渲染器依赖,每个失败项附确切修复命令 |
+| `node cli/tsuzuri.mjs lyrics <folder>` | 只跑歌词识别并预览(时间戳 + 文本 + 置信度),低于渲染阈值的行会标出——渲染前先确认识别质量 |
 
 ## 100% local / 完全本地
 
-Zero cloud, zero API keys. Whisper backend auto-detects your hardware (Apple Silicon → mlx / NVIDIA → CUDA / else CPU int8). If huggingface.co is unreachable (e.g. mainland China), it automatically switches to `hf-mirror.com` for the one-time model download.
-
-零云依赖、零 API key。Whisper 后端自动探测硬件;国内网络下 HF 直连失败会自动切换 hf-mirror 镜像下载模型。
-
-## Fonts / 字体
-
-Noto Serif JP / SC / Latin (SIL OFL 1.1) are bundled in `renderer/src/fonts/` for offline rendering.
+零云端、零 API key。Whisper 后端自动匹配硬件(Apple Silicon → mlx / NVIDIA → CUDA / 其余 → CPU int8);模型首次下载时若 huggingface.co 不可达,自动切换 hf-mirror 镜像。字幕字体 Noto Serif JP / SC / Latin(SIL OFL 1.1)已随仓库内置,离线可渲染。
 
 ## Development / 开发
 
 ```bash
-cd analyzer && uv run pytest        # allocation algorithm tests
-cd renderer && npm run typecheck    # renderer types
-cd renderer && npm run studio       # live-preview the fixture timeline
+cd analyzer && uv run pytest        # 分配算法 + 歌词解析测试
+cd cli && npm test                  # CLI / 终端输出测试
+cd renderer && npm run typecheck    # 渲染器类型检查
+cd renderer && npm run studio       # 实时预览 fixture 时间线
 ```
 
 Plan & status: [docs/tsuzuri-implementation-plan.md](docs/tsuzuri-implementation-plan.md) · [docs/tsuzuri-status.md](docs/tsuzuri-status.md)
