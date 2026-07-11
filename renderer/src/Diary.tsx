@@ -11,7 +11,8 @@ import './fonts';
 import {Photo} from './Photo';
 import {Subtitle} from './Subtitle';
 import {ANIMATION, SUBTITLE} from './theme';
-import type {Timeline} from './types';
+import {getFadeDuration} from './transition';
+import type {PhotoClip, Timeline} from './types';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
@@ -33,13 +34,18 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
   const bandCenterFromBottom = (meta.height * (1 - meta.photo_scale)) / 4;
 
   // 只挂载当前可见的照片(含淡化前后沿)
-  const isFade = (ty?: string) => ty === 'crossfade' || ty === 'album';
-  const visiblePhotos = photos.filter((p, i) => {
-    const dIn = isFade(p.transition.type) ? p.transition.duration : 0;
-    const next = photos[i + 1]?.transition;
-    const dOut = isFade(next?.type) ? (next?.duration ?? 0) : 0;
-    return t >= p.start - dIn / 2 - 1 / fps && t <= p.end + dOut / 2 + 1 / fps;
-  });
+  const visiblePhotos: Array<{clip: PhotoClip; index: number}> = [];
+  for (let index = 0; index < photos.length; index += 1) {
+    const clip = photos[index];
+    const dIn = getFadeDuration(clip.transition);
+    const dOut = getFadeDuration(photos[index + 1]?.transition);
+    if (
+      t >= clip.start - dIn / 2 - 1 / fps &&
+      t <= clip.end + dOut / 2 + 1 / fps
+    ) {
+      visiblePhotos.push({clip, index});
+    }
+  }
 
   const visibleSubtitles = subtitles.filter(
     (l) =>
@@ -60,18 +66,15 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
         src={staticFile(meta.audio.replace(/^\.\//, ''))}
         volume={(f) => interpolate(f, [fadeStart, durationInFrames - 1], [1, 0], clamp)}
       />
-      {visiblePhotos.map((p) => {
-        const i = photos.indexOf(p);
-        return (
-          <Photo
-            key={`${p.src}-${i}`}
-            clip={p}
-            nextTransition={photos[i + 1]?.transition ?? null}
-            safeWidth={safeWidth}
-            safeHeight={safeHeight}
-          />
-        );
-      })}
+      {visiblePhotos.map(({clip, index}) => (
+        <Photo
+          key={`${clip.src}-${index}`}
+          clip={clip}
+          backgroundColor={meta.background}
+          safeWidth={safeWidth}
+          safeHeight={safeHeight}
+        />
+      ))}
       {visibleSubtitles.map((l) => (
         <Subtitle
           key={`${l.start}-${l.text}`}

@@ -5,8 +5,8 @@ import fixture from '../../examples/fixture/timeline.json';
 import type {Timeline} from './types';
 import {CANVAS} from './theme';
 
-// defaultProps 用 M0 fixture,方便 studio 直接预览;
-// 正式渲染由 CLI 以 --props=<timeline.json> 整体覆盖。
+// Studio 默认加载 fixture 便于直接预览;
+// CLI 渲染时用 --props=<timeline.json> 覆盖完整时间线。
 const defaultTimeline = fixture as unknown as Timeline;
 
 export const RemotionRoot: React.FC = () => {

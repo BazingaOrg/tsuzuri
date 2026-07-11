@@ -2,8 +2,8 @@ import {Config} from '@remotion/cli/config';
 
 Config.setEntryPoint('src/index.ts');
 
-// 开发/验收默认指向 M0 fixture;M3 起 CLI 用 --public-dir 指向用户素材文件夹。
-// 字体不放 public dir(会被覆盖),走 webpack asset 打进 bundle。
+// Studio 默认读取 fixture 素材;CLI 渲染时用 --public-dir 指向用户素材文件夹。
+// 字体不依赖可替换的 public dir,由 webpack asset 打进 bundle。
 Config.setPublicDir('../examples/fixture');
 
 Config.overrideWebpackConfig((config) => ({

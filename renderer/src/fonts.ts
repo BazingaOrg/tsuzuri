@@ -4,7 +4,7 @@ import notoSerifSC from './fonts/NotoSerifSC-VF.ttf';
 import notoSerif from './fonts/NotoSerif-VF.ttf';
 
 // 字体随 bundle 打包(webpack asset/resource),不走 public dir——
-// public dir 在 M3 由 CLI 指向用户素材文件夹,不能依赖它存放字体。
+// CLI 渲染时 public dir 指向用户素材文件夹,不能依赖它存放字体。
 
 const loadFont = (family: string, url: string) => {
   if (typeof document === 'undefined') return;

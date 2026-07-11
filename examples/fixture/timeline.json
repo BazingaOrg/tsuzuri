@@ -15,21 +15,21 @@
       "start": 0.0,
       "end": 10.0,
       "transition": { "type": "none", "duration": 0 },
-      "motion": { "type": "kenburns", "from": 1.0, "to": 1.035 }
+      "motion": { "type": "none", "from": 1.0, "to": 1.0 }
     },
     {
       "src": "./photos/002.jpg",
       "start": 10.0,
       "end": 20.5,
-      "transition": { "type": "crossfade", "duration": 0.6 },
-      "motion": { "type": "kenburns", "from": 1.0, "to": 1.035 }
+      "transition": { "type": "album", "duration": 0.4 },
+      "motion": { "type": "none", "from": 1.0, "to": 1.0 }
     },
     {
       "src": "./photos/003.jpg",
       "start": 20.5,
       "end": 30.0,
-      "transition": { "type": "crossfade", "duration": 0.6 },
-      "motion": { "type": "kenburns", "from": 1.0, "to": 1.035 }
+      "transition": { "type": "album", "duration": 0.4 },
+      "motion": { "type": "none", "from": 1.0, "to": 1.0 }
     }
   ],
   "subtitles": [

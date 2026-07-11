@@ -47,13 +47,10 @@ export const Subtitle: React.FC<{
   const fadeOut = interpolate(t, [line.end, outEnd], [1, 0], clamp);
   const opacity = Math.min(fadeIn, fadeOut);
 
-  // Apple Music 歌词行动效:进场上浮聚焦,退场继续上行化雾
+  // 摄影展题签式动效:只保留克制的淡化与短距离位移。
   const riseIn = interpolate(t, [line.start, inEnd], [SUBTITLE.riseDistance * scale, 0], easeOut);
   const riseOut = interpolate(t, [line.end, outEnd], [0, -SUBTITLE.exitRise * scale], easeOut);
   const rise = riseIn + riseOut;
-  const blurIn = interpolate(t, [line.start, inEnd], [SUBTITLE.blurIn * scale, 0], easeOut);
-  const blurOut = interpolate(t, [line.end, outEnd], [0, SUBTITLE.blurOut * scale], easeOut);
-  const blur = blurIn + blurOut;
 
   const letterSpacing =
     fullwidthLength(line.text) > SUBTITLE.compactThreshold
@@ -66,7 +63,7 @@ export const Subtitle: React.FC<{
   const units = fullwidthLength(line.text);
   const baseSize = SUBTITLE.fontSize * scale;
   const estWidth = baseSize * (units + line.text.length * spacingEm);
-  const maxWidth = width * 0.92;
+  const maxWidth = width * 0.86;
   const fontSize = estWidth > maxWidth ? baseSize * (maxWidth / estWidth) : baseSize;
 
   // 行框(lineHeight 1)垂直居中于照片下缘与画布底部之间的带状区域
@@ -82,7 +79,6 @@ export const Subtitle: React.FC<{
         textAlign: 'center',
         opacity,
         transform: `translateY(${rise}px)`,
-        filter: blur > 0.05 ? `blur(${blur}px)` : undefined,
       }}
     >
       <span

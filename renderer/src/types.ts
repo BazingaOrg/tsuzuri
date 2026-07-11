@@ -3,6 +3,9 @@ export type TransitionSpec = {
   duration: number; // seconds; cut/none 为 0
 };
 
+/**
+ * @deprecated 仅用于读取旧版 timeline。渲染器忽略所有 motion 字段,照片几何始终保持不变。
+ */
 export type MotionSpec = {
   type: 'kenburns' | 'none';
   from: number;
@@ -14,6 +17,7 @@ export type PhotoClip = {
   start: number; // seconds; switch point = crossfade midpoint
   end: number;
   transition: TransitionSpec;
+  /** @deprecated 仅供 timeline v1 兼容;渲染时为 no-op。 */
   motion: MotionSpec;
 };
 

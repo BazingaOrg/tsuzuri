@@ -1,7 +1,4 @@
-/**
- * 视觉规格常量 — 实现方案第二节(已冻结,1080p 基准)。
- * 所有像素值以 1080p 为基准;非 1080p 输出按 height/1080 等比缩放。
- */
+/** 视觉规格以 1080p 为基准,非 1080p 输出按 height/1080 等比缩放。 */
 
 export const CANVAS = {
   width: 1920,
@@ -11,27 +8,37 @@ export const CANVAS = {
 } as const;
 
 export const PHOTO = {
-  scale: 0.8, // 默认安全框占比,可被 meta.photo_scale 覆盖
-  shadow:
-    '0 10px 28px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08)', // 双层,近实远虚
+  // 中性冷黑三层阴影:贴合层定边缘,中层给体积,远层给纵深;白底上不偏色
+  shadowLayers: [
+    {x: 0, y: 3, blur: 8, spread: -1, color: 'rgba(10, 12, 16, 0.32)'},
+    {x: 0, y: 16, blur: 36, spread: -8, color: 'rgba(10, 12, 16, 0.28)'},
+    {x: 0, y: 36, blur: 72, spread: -16, color: 'rgba(10, 12, 16, 0.18)'},
+  ],
+  outlineWidth: 1,
+  outlineColor: 'rgba(16, 20, 26, 0.10)',
 } as const;
 
+export const getPhotoShadow = (scale: number): string =>
+  PHOTO.shadowLayers
+    .map(
+      ({x, y, blur, spread, color}) =>
+        `${x * scale}px ${y * scale}px ${blur * scale}px ${spread * scale}px ${color}`,
+    )
+    .join(', ');
+
 export const SUBTITLE = {
-  // 2026-07-10 修订:Apple Music 歌词感 —— 更大字重、带状区域垂直居中、模糊消散动效
-  fontSize: 44, // ≈ 画面高度 4.1%
-  fontWeight: 600, // 半粗,变量字体直接支持
-  color: '#2E2E2B', // 深墨
-  letterSpacing: '0.18em',
-  letterSpacingCompact: '0.08em', // 单行超过约 18 个全角字符时回退
+  // 低干扰的摄影画展题签:纤细、小字号、缓入缓出,避免抢夺照片视觉焦点。
+  fontSize: 36,
+  fontWeight: 500,
+  color: '#37332D',
+  letterSpacing: '0.12em',
+  letterSpacingCompact: '0.06em', // 单行超过约 18 个全角字符时回退
   compactThreshold: 18, // 全角字符等效数
   confidenceThreshold: 0.6, // Whisper 段置信度低于此值不渲染
-  // 进场:淡入 + 上浮 + 模糊聚焦;退场:淡出 + 继续上行 + 化雾(Apple 歌词行语言)
-  fadeInDuration: 0.45,
-  fadeOutDuration: 0.3,
-  riseDistance: 16, // px,进场上浮
-  exitRise: 12, // px,退场继续上行
-  blurIn: 10, // px,进场起始模糊
-  blurOut: 6, // px,退场终点模糊
+  fadeInDuration: 0.35,
+  fadeOutDuration: 0.25,
+  riseDistance: 6,
+  exitRise: 4,
 } as const;
 
 export const INFO_BAR = {
@@ -41,13 +48,6 @@ export const INFO_BAR = {
 } as const;
 
 export const ANIMATION = {
-  crossfadeDuration: 0.6, // 秒;淡化中点对齐节拍点
-  enterScaleFrom: 1.02, // crossfade 进场 scale 1.02 → 1.00 落定
-  // album(默认):Apple Music 切歌感 —— 进场 0.95 放大浮现,出场微缩退去,无过冲
-  albumEnterFrom: 0.95,
-  albumExitTo: 0.97,
-  kenburnsFrom: 1.0,
-  kenburnsTo: 1.035,
   endingFadeDuration: 1.5, // 秒;音频淡出 + 画面淡至白
 } as const;
 
