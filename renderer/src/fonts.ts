@@ -2,7 +2,6 @@ import {cancelRender, continueRender, delayRender} from 'remotion';
 import notoSerifJP from './fonts/NotoSerifJP-VF.ttf';
 import notoSerifSC from './fonts/NotoSerifSC-VF.ttf';
 import notoSerif from './fonts/NotoSerif-VF.ttf';
-import sacramento from './fonts/Sacramento-Regular.ttf';
 
 // 字体随 bundle 打包(webpack asset/resource),不走 public dir——
 // CLI 渲染时 public dir 指向用户素材文件夹,不能依赖它存放字体。
@@ -28,5 +27,3 @@ const loadFont = (family: string, url: string, descriptors?: FontFaceDescriptors
 loadFont('Noto Serif JP', notoSerifJP, {weight: '200 900'});
 loadFont('Noto Serif SC', notoSerifSC, {weight: '200 900'});
 loadFont('Noto Serif', notoSerif, {weight: '200 900'});
-// 静态单字重手写体(片尾谢幕语),非变量字体
-loadFont('Sacramento', sacramento, {weight: 'normal'}, 'truetype');

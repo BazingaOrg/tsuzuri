@@ -66,11 +66,13 @@ export const INTRO = {
 } as const;
 
 export const OUTRO = {
-  // 片尾谢幕语:白场过半后居中浮现,持续到最后一帧
-  text: 'Thanks for watching',
-  fontSize: 64,
+  // 片尾谢幕语:白场过半后居中浮现,持续到最后一帧;沿用字幕的题签样式
+  text: 'Thanks for watching :)',
+  fontSize: 36,
+  fontWeight: 500,
   color: '#37332D',
-  fontFamily: `'Sacramento', cursive`,
+  letterSpacing: '0.12em',
+  fontFamily: `'Noto Serif', serif`, // 与英文字幕同字体
   fadeRange: [0.5, 0.85] as const, // 随白场进度淡入的区间
   riseDistance: 6,
 } as const;

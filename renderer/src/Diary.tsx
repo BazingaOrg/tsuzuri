@@ -102,6 +102,8 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
             style={{
               fontFamily: OUTRO.fontFamily,
               fontSize: OUTRO.fontSize * scale,
+              fontWeight: OUTRO.fontWeight,
+              letterSpacing: OUTRO.letterSpacing,
               color: OUTRO.color,
               opacity: outroOpacity,
               transform: `translateY(${(1 - outroOpacity) * OUTRO.riseDistance * scale}px)`,
