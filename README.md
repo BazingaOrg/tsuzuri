@@ -6,6 +6,8 @@
 
 綴る:缀写日记、装订相册 — 写真を音で綴る。
 
+**中文** · [English](README.en.md)
+
 ## Showcase / 效果
 
 ![成片一帧:白底画布上的照片与画展式字幕](docs/assets/showcase-frame.jpg)
@@ -16,6 +18,8 @@
 
 ```bash
 # 依赖:Node 18+ · uv · FFmpeg
+#   macOS 一键:brew install node ffmpeg uv
+#   其他平台:nodejs.org · docs.astral.sh/uv · ffmpeg.org
 cd renderer && npm install && cd ..
 node cli/tsuzuri.mjs doctor          # 可选:秒级预检依赖,缺什么直接给修复命令
 
@@ -23,6 +27,8 @@ node cli/tsuzuri.mjs doctor          # 可选:秒级预检依赖,缺什么直接
 node cli/tsuzuri.mjs ./osaka-trip
 # → ./osaka-trip/output/osaka-trip.mp4
 ```
+
+> **首跑预期**:没有 `.lrc` 时首次运行会自动下载 Whisper 模型(CPU 后端 small 约 500 MB,Apple Silicon / CUDA 用 medium 约 1.5 GB,仅一次);60fps 逐帧渲染较吃 CPU,一首 3 分钟的歌通常需要几分钟,风扇转属正常。
 
 日常只有这一条命令,唯一的 flag 是 `-o <path>` 改输出路径。其余全部自动决策:
 
@@ -35,7 +41,7 @@ node cli/tsuzuri.mjs ./osaka-trip
 | 微调重渲 | 手改 `metadata/timeline.json` 后重跑,跳过分析直接渲染 |
 | 响度 | 成片归一到 −14 LUFS(TP −1.5 dB) |
 
-文件夹内可放 `tsuzuri.toml` 覆盖默认值(`photo_scale`、`min_gap`、`transition` …)。
+文件夹内可放 `tsuzuri.toml` 覆盖默认值(分辨率 / 帧率 / 过渡 / 快闪与裁歌阈值 / 字幕开关 …),全部配置项见 [docs/config.md](docs/config.md)。
 
 ## How it works / 工作原理
 
@@ -78,6 +84,22 @@ node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
 
 零云端、零 API key。Whisper 后端自动匹配硬件(Apple Silicon → mlx / NVIDIA → CUDA / 其余 → CPU int8);模型首次下载时若 huggingface.co 不可达,自动切换 hf-mirror 镜像。字幕字体 Noto Serif JP / SC / Latin(SIL OFL 1.1)已随仓库内置,离线可渲染。
 
+**平台支持**:macOS(Apple Silicon)实测;Linux 理论可用(faster-whisper CPU / CUDA 路径);Windows 代码层面兼容、未实测,欢迎反馈。
+
+## FAQ / 常见问题
+
+**模型下载慢或失败?** 直连 huggingface.co 失败会自动切换 hf-mirror.com,也可自行设置 `HF_ENDPOINT`;或手动下载模型放进仓库 `models/` 目录(`models/whisper-<size>-mlx` 或 `models/faster-whisper-<size>`)彻底离线。
+
+**有些歌词没出现在视频里?** 置信度低于 0.6 的行会被过滤。渲染前用 `node cli/tsuzuri.mjs lyrics <folder>` 预览;识别不佳时放一份 `.lrc` 即可完全接管字幕。
+
+**人声弱、识别很差?** `cd analyzer && uv sync --extra separation` 安装 demucs,低置信度时会自动人声分离后重识别一次。
+
+**渲染慢、风扇响?** 正常:60fps 逐帧渲染 + H.264 编码本就吃 CPU。接受 30fps 的话在 `tsuzuri.toml` 设 `fps = 30`,耗时近似减半。
+
+**想换 Whisper 模型?** 运行前设 `TSUZURI_WHISPER_MODEL=tiny|small|medium`(或本地模型目录路径)。
+
+**支持视频素材吗?** 暂不支持:扫描时终端提醒后忽略,不会出现在成片里。
+
 ## Development / 开发
 
 ```bash
@@ -88,3 +110,7 @@ cd renderer && npm run studio       # 实时预览 fixture 时间线
 ```
 
 Plan & status: [docs/tsuzuri-implementation-plan.md](docs/tsuzuri-implementation-plan.md) · [docs/tsuzuri-status.md](docs/tsuzuri-status.md)
+
+## License / 许可
+
+代码以 [MIT](LICENSE) 发布;内置字体 Noto Serif JP / SC / Latin 遵循 [SIL OFL 1.1](renderer/src/fonts/OFL.txt),可随仓库自由分发。
