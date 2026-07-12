@@ -16,6 +16,7 @@ import {CliError, USAGE, parseArgs} from './options.mjs';
 import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
 import {runDoctor} from './doctor.mjs';
 import {runLyrics} from './lyrics.mjs';
+import {runMenu} from './menu.mjs';
 import {runStill} from './still.mjs';
 import {term} from './term.mjs';
 import {FIXES} from './dependencies.mjs';
@@ -76,7 +77,12 @@ const normalizeLoudness = (file) => {
 };
 
 const main = async () => {
-  const parsed = parseArgs(process.argv.slice(2));
+  let argv = process.argv.slice(2);
+  // 裸跑 + 交互终端 → 数字菜单;管道/脚本里仍走 USAGE 报错,不破坏可脚本性
+  if (argv.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
+    argv = await runMenu();
+  }
+  const parsed = parseArgs(argv);
   if (parsed.command === 'help') {
     console.log(USAGE);
     return 0;

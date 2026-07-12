@@ -2,6 +2,7 @@ export class CliError extends Error {}
 
 export const USAGE =
   '用法:\n' +
+  '  tsuzuri                                    不带参数进入交互菜单(仅交互终端)\n' +
   '  tsuzuri <folder> [-o out.mp4]              渲染相册视频(默认命令)\n' +
   '  tsuzuri still <photo|folder> [选项]         按视频同款视觉导出静态图\n' +
   '  tsuzuri doctor                             检查依赖是否就绪\n' +
