@@ -18,22 +18,10 @@ import {runDoctor} from './doctor.mjs';
 import {runLyrics} from './lyrics.mjs';
 import {runStill} from './still.mjs';
 import {term} from './term.mjs';
+import {FIXES} from './dependencies.mjs';
+import {runCommand} from './run-command.mjs';
 
 const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-
-const run = (stage, cmd, args, opts = {}) => {
-  const r = spawnSync(cmd, args, {stdio: 'inherit', ...opts});
-  if (r.error) {
-    term.error(`${stage}失败: 无法执行 ${cmd}: ${r.error.message}`);
-    return 1;
-  }
-  if (r.status !== 0) {
-    const code = r.status ?? 1;
-    term.error(`${stage}失败(退出码 ${code})`);
-    return code;
-  }
-  return 0;
-};
 
 const TARGET_LUFS = -14;
 const TARGET_TP = -1.5;
@@ -47,6 +35,12 @@ const normalizeLoudness = (file) => {
     '-f', 'null', '-',
   ]);
   const match = probe.stderr?.match(/\{[\s\S]*?\}/);
+  if (probe.error?.code === 'ENOENT') {
+    term.warn('找不到命令 ffmpeg,已跳过响度检查');
+    term.detail(FIXES.ffmpeg);
+    term.detail('运行 tsuzuri doctor 可一次检查全部依赖');
+    return;
+  }
   if (probe.error || probe.status !== 0 || !match) {
     term.warn('响度测量失败,保留原始响度');
     return;
@@ -93,7 +87,17 @@ const main = async () => {
 
   const {folder: folderArg, output} = parsed;
   const folder = path.resolve(folderArg);
-  if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) throw new CliError(`不是文件夹: ${folder}`);
+  if (!fs.existsSync(folder)) throw new CliError(`找不到路径: ${folder}`);
+  if (!fs.statSync(folder).isDirectory()) {
+    const ext = path.extname(folder).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      throw new CliError(`不是文件夹: ${folder}\n└ 要导出单张静态图?用: tsuzuri still ${folderArg}`);
+    }
+    if (['.mp3', '.m4a', '.wav', '.flac', '.aac', '.ogg'].includes(ext)) {
+      throw new CliError(`不是文件夹: ${folder}\n└ 请把音频和照片放进一个文件夹后传入该文件夹`);
+    }
+    throw new CliError(`不是文件夹: ${folder}`);
+  }
 
   const {photos, audio, lyrics, videos} = scanFolder(folder);
   if (videos.length > 0) {
@@ -136,7 +140,7 @@ const main = async () => {
       '--lyrics-output', project.lyricsPath,
     ];
     if (lyrics) analyzeArgs.push('--lyrics-file', path.join(folder, lyrics));
-    const code = run('分析音频', 'uv', analyzeArgs);
+    const code = runCommand('分析音频', 'uv', analyzeArgs);
     if (code !== 0) return code;
     term.success('音频分析完成');
   }
@@ -145,7 +149,7 @@ const main = async () => {
   // 交给 plan.py 自己判断——它靠内容校验和识别文件是否被手动改过,手改过就
   // 原样保留,没被动过就悄悄升级到最新分配算法(见 plan.py _content_checksum)
   term.start('规划照片时间线');
-  const planCode = run('规划照片时间线', 'uv', [
+  const planCode = runCommand('规划照片时间线', 'uv', [
     'run', '--project', analyzer, 'tsuzuri-plan', folder,
     '--beats', project.beatsPath,
     '--lyrics', project.lyricsPath,
@@ -169,7 +173,7 @@ const main = async () => {
   if (!fs.existsSync(rendererPackage)) throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
 
   term.start('渲染视频');
-  const renderCode = run('渲染视频', process.execPath, [
+  const renderCode = runCommand('渲染视频', process.execPath, [
     path.join(REPO, 'cli', 'render.mjs'),
     timelinePath,
     outPath,
@@ -190,6 +194,9 @@ if (isMain) {
     process.exitCode = await main();
   } catch (error) {
     term.error(`tsuzuri: ${error instanceof Error ? error.message : String(error)}`);
+    if ((process.env.TSUZURI_DEBUG === '1' || process.env.DEBUG === '1') && error instanceof Error && error.stack) {
+      term.detail(error.stack);
+    }
     process.exitCode = 1;
   }
 }

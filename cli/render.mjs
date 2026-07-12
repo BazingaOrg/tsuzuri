@@ -9,7 +9,7 @@ import {createPercentProgress} from './progress.mjs';
 const main = async () => {
   const [timelineArg, outputArg, publicDirArg] = process.argv.slice(2);
   if (!timelineArg || !outputArg || !publicDirArg) {
-    throw new Error('用法: render.mjs <timeline.json> <output.mp4> <public-dir>');
+    throw new Error('用法: render.mjs <timeline.json> <output.mp4> <public-dir>\n此为内部入口,日常请用 tsuzuri <folder>');
   }
 
   const timelinePath = path.resolve(timelineArg);
@@ -73,5 +73,6 @@ try {
   await main();
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
+  if ((process.env.TSUZURI_DEBUG === '1' || process.env.DEBUG === '1') && error instanceof Error && error.stack) console.error(error.stack);
   process.exitCode = 1;
 }

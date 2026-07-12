@@ -8,6 +8,9 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {term} from './term.mjs';
+import {FIXES} from './dependencies.mjs';
+
+export {FIXES} from './dependencies.mjs';
 
 const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -37,13 +40,13 @@ const commandCheck = (label, cmd, args, {versionRegex, fix}) => {
 const uvCheck = () =>
   commandCheck('uv', 'uv', ['--version'], {
     versionRegex: /uv (\S+)/,
-    fix: '安装 uv (https://docs.astral.sh/uv/) — curl -LsSf https://astral.sh/uv/install.sh | sh',
+    fix: FIXES.uv,
   });
 
 const ffmpegCheck = () =>
   commandCheck('ffmpeg', 'ffmpeg', ['-version'], {
     versionRegex: /ffmpeg version (\S+)/,
-    fix: 'brew install ffmpeg (macOS) / 各平台安装指引 https://ffmpeg.org',
+    fix: FIXES.ffmpeg,
   });
 
 const rendererCheck = (repo) => {
@@ -51,7 +54,7 @@ const rendererCheck = (repo) => {
   if (fs.existsSync(dir)) {
     return {ok: true, line: '渲染器依赖已安装'};
   }
-  return {ok: false, line: '渲染器依赖未安装', fix: 'cd renderer && npm install'};
+  return {ok: false, line: '渲染器依赖未安装', fix: FIXES.renderer};
 };
 
 /** 分析器 Python 环境:仅提示,从不判定失败(uv 会在首次运行时自动构建)。 */

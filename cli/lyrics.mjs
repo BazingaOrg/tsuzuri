@@ -4,7 +4,6 @@
  * 每次运行都会重新识别(LRC 即时,Whisper 较慢),方便渲染前先检查歌词对不对。
  */
 
-import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,26 +11,13 @@ import {fileURLToPath} from 'node:url';
 import {CliError} from './options.mjs';
 import {ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
 import {term} from './term.mjs';
+import {runCommand} from './run-command.mjs';
 
 const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // 与 renderer/src/theme.ts 的 SUBTITLE.confidenceThreshold 保持一致:
 // 低于这个置信度的段落,渲染时不会显示字幕。
 export const RENDER_CONFIDENCE_THRESHOLD = 0.6;
-
-const run = (stage, cmd, args, opts = {}) => {
-  const r = spawnSync(cmd, args, {stdio: 'inherit', ...opts});
-  if (r.error) {
-    term.error(`${stage}失败: 无法执行 ${cmd}: ${r.error.message}`);
-    return 1;
-  }
-  if (r.status !== 0) {
-    const code = r.status ?? 1;
-    term.error(`${stage}失败(退出码 ${code})`);
-    return code;
-  }
-  return 0;
-};
 
 const formatTimestamp = (totalSeconds) => {
   const clamped = Math.max(0, totalSeconds);
@@ -98,7 +84,7 @@ export const runLyrics = (folderArg) => {
     '--lyrics-output', project.lyricsPath,
   ];
   if (lyrics) analyzeArgs.push('--lyrics-file', path.join(folder, lyrics));
-  const code = run('识别歌词', 'uv', analyzeArgs);
+  const code = runCommand('识别歌词', 'uv', analyzeArgs);
   if (code !== 0) return code;
   term.success('歌词识别完成');
 
