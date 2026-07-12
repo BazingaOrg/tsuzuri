@@ -39,10 +39,10 @@ node cli/tsuzuri.mjs ./osaka-trip
 | 快闪模式 | 人均展示 < 2s → 逐拍切换 |
 | 歌长图少 | 人均 > 10s → 在重拍处截断歌曲 + 淡出收尾 |
 | 微调重渲 | 手改 `metadata/timeline.json` 后重跑,跳过分析直接渲染 |
-| 片头片尾 | 开场手写签名写入 + 片尾 Thanks for watching;首图展示过短自动跳过片头 |
+| 片头片尾 | 开场手写签名写入 + 片尾谢幕语;可用 `tsuzuri.toml` 换签名 SVG / 文案 / 关片头;首图过短自动跳过片头 |
 | 响度 | 成片归一到 −14 LUFS(TP −1.5 dB) |
 
-文件夹内可放 `tsuzuri.toml` 覆盖默认值(分辨率 / 帧率 / 过渡 / 快闪与裁歌阈值 / 字幕开关 …),全部配置项见 [docs/config.md](docs/config.md)。
+文件夹内可放 `tsuzuri.toml` 覆盖默认值(分辨率 / 帧率 / 过渡 / 快闪与裁歌阈值 / 字幕开关 / 片头片尾 …),全部配置项见 [docs/config.md](docs/config.md)。
 
 ## How it works / 工作原理
 
@@ -72,14 +72,18 @@ LRC 支持 `[mm:ss.xx]`、同行多时间戳、`[offset:±ms]`、空时间行清
 ## Commands / 命令速查
 
 ```bash
-node cli/tsuzuri.mjs ./osaka-trip               # 渲染成片(唯一日常命令)
+node cli/tsuzuri.mjs ./osaka-trip               # 渲染成片(日常命令)
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # 自定义输出路径
+node cli/tsuzuri.mjs still ./photo.jpg          # 按视频同款视觉导出 PNG(默认 2× 超采样)
+node cli/tsuzuri.mjs still ./photos --exif      # 批量 + EXIF 展签面板
 node cli/tsuzuri.mjs doctor                     # 预检依赖,失败项附修复命令
 node cli/tsuzuri.mjs lyrics ./osaka-trip        # 渲染前预览歌词识别结果
 node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
 ```
 
 `lyrics` 会列出每行的时间戳与置信度,低于渲染阈值(0.6)的行会标出——先确认识别质量,再花时间渲染。
+
+`still` 是纯 Node 管道(不跑音频分析),输出无损 PNG;默认 `--scale 2`(3840×2160 超采样),可选 `--exif` 叠加相机/镜头/参数/时间(不含 GPS)。单张默认写到照片旁 `output/stills/`,文件夹则批量导出。
 
 ## 100% local / 完全本地
 
@@ -100,6 +104,8 @@ node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
 **想换 Whisper 模型?** 运行前设 `TSUZURI_WHISPER_MODEL=tiny|small|medium`(或本地模型目录路径)。
 
 **支持视频素材吗?** 暂不支持:扫描时终端提醒后忽略,不会出现在成片里。
+
+**`Cannot find module .../renderer/cli/tsuzuri.mjs`?** 多半是在 `renderer/` 里跑了 `node cli/tsuzuri.mjs`(装依赖或 `npm run studio` 后 cwd 常停在这里)。请先 `cd ..` 回到仓库根再执行;根目录下的正确入口是 `node cli/tsuzuri.mjs`。若仍在 `renderer/` 下执行,现已有转发入口,会自动转到真正的 CLI。
 
 ## Development / 开发
 

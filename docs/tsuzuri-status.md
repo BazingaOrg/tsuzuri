@@ -14,6 +14,11 @@
 | M4 歌词字幕 | done | d315599 | Whisper + 用户 LRC 双入口;mlx 后端实测(合成语音 3 段 + 纯音乐 0 段);待真歌验收 |
 | M5 边界打磨 | done* | — | 裁歌、快闪、损坏图跳过、README 完成;*真实素材阈值调优待用户 |
 
+## 近期落地(2026-07-12)
+
+- **片头/片尾个性化(配置驱动)**:`tsuzuri.toml` 新增 `outro_text` / `signature` / `intro` → `plan.py` 写入 `meta.branding` → 渲染器消费。谢幕语抽为 `Outro.tsx`;自定义签名 SVG 运行时 `getTotalLength()` 测长(delayRender),多 path 并行书写,默认路径仍用常量 2109.58 保证逐帧一致;`intro=false` 时 plan 不预留片头、渲染器不挂 Intro。
+- **`tsuzuri still`**:纯 Node + `renderStill` PNG,默认 `--scale 2`;可选 `--exif`(exifr 在 CLI 格式化四行)。`FramedPhoto` 从 Photo 抽出,与 Still composition 共用。方案见 [branding-and-still-export-plan.md](./branding-and-still-export-plan.md)。
+
 ## 关键决策(计划文档之外新增)
 
 - **fps = 60**:默认按 60fps 渲染,`meta.fps` 仍可覆盖。

@@ -37,9 +37,10 @@ This is the only everyday command; the single flag is `-o <path>` to change the 
 | Flash mode | avg display < 2s → cut on every beat |
 | Long song, few photos | avg > 10s → trim at a downbeat + fade out |
 | Tweak & re-render | hand-edit `metadata/timeline.json`, rerun → analysis is skipped |
+| Intro / outro | handwritten signature + outro line; customize via `tsuzuri.toml` (`signature` / `outro_text` / `intro`) |
 | Loudness | normalized to −14 LUFS (TP −1.5 dB) |
 
-Drop a `tsuzuri.toml` in the folder to override defaults (resolution / fps / transitions / flash & trim thresholds / subtitles …) — full reference in [docs/config.md](docs/config.md) (Chinese).
+Drop a `tsuzuri.toml` in the folder to override defaults (resolution / fps / transitions / flash & trim thresholds / subtitles / branding …) — full reference in [docs/config.md](docs/config.md) (Chinese).
 
 ## How it works
 
@@ -69,14 +70,18 @@ Video clips (`.mp4`, `.mov`, …) are not supported yet: they won't appear in th
 ## Commands
 
 ```bash
-node cli/tsuzuri.mjs ./osaka-trip               # render (the only everyday command)
+node cli/tsuzuri.mjs ./osaka-trip               # render video
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # custom output path
+node cli/tsuzuri.mjs still ./photo.jpg          # export a still PNG (same look as the video, default 2× supersample)
+node cli/tsuzuri.mjs still ./photos --exif      # batch + EXIF caption panel
 node cli/tsuzuri.mjs doctor                     # dependency preflight with fix hints
 node cli/tsuzuri.mjs lyrics ./osaka-trip        # preview lyric recognition before rendering
 node cli/tsuzuri.mjs help                       # usage (same as -h / --help)
 ```
 
 `lyrics` lists every line with timestamps and confidence; lines below the render threshold (0.6) are flagged — check recognition quality before spending minutes on a render.
+
+`still` is a pure Node pipeline (no audio analysis). It writes lossless PNG; default `--scale 2` (3840×2160 supersample). Optional `--exif` adds camera / lens / exposure / datetime (never GPS).
 
 ## 100% local
 
@@ -97,6 +102,8 @@ No cloud, no API keys. The Whisper backend matches your hardware automatically (
 **Different Whisper model?** Set `TSUZURI_WHISPER_MODEL=tiny|small|medium` (or a local model directory path) before running.
 
 **Video clips as input?** Not supported yet: the scanner warns and ignores them.
+
+**`Cannot find module .../renderer/cli/tsuzuri.mjs`?** You probably ran `node cli/tsuzuri.mjs` from inside `renderer/` (common after `npm install` or Studio). `cd ..` to the repo root first; the real entry is `node cli/tsuzuri.mjs`. A small forwarder under `renderer/cli/` now redirects automatically if you stay in that directory.
 
 ## Development
 
