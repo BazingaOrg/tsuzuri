@@ -69,7 +69,10 @@ Video clips (`.mp4`, `.mov`, …) are not supported yet: they won't appear in th
 
 ## Commands
 
+Run `node cli/tsuzuri.mjs` with no arguments to get an interactive menu: pick a number, drag a path in, and the equivalent one-liner is echoed before running — use it once and you know the direct command. The menu only appears in an interactive terminal; scripts and pipes get the usual usage error.
+
 ```bash
+node cli/tsuzuri.mjs                            # interactive menu (numbered choices, first-run friendly)
 node cli/tsuzuri.mjs ./osaka-trip               # render video
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # custom output path
 node cli/tsuzuri.mjs still ./photo.jpg          # export a still PNG (same look as the video, default 2× supersample)
@@ -79,6 +82,29 @@ node cli/tsuzuri.mjs still ./photos --skip-existing # explicitly resume a batch
 node cli/tsuzuri.mjs doctor                     # dependency preflight with fix hints
 node cli/tsuzuri.mjs lyrics ./osaka-trip        # preview lyric recognition before rendering
 node cli/tsuzuri.mjs help                       # usage (same as -h / --help)
+```
+
+Real terminal output of the render pipeline (instrumental material, recorded on Apple Silicon):
+
+```text
+● 分析音频
+└ beats: bpm=120.19 beats=59 downbeats=15 first_onset=0.511s
+└ whisper backend: mlx / medium
+● 未识别到人声,按纯音乐处理并跳过字幕轨
+● 音频分析完成
+● 规划照片时间线
+└ plan: 3 photos / 30.0s (人均 10.0s, 字幕 0 行)
+● 照片时间线规划完成
+● 渲染计划
+└ 照片: 3 张,人均 10.0s
+└ 音频: music.mp3,30s
+└ 歌词: 无(纯音乐或未识别)
+● 渲染视频
+● 视频渲染完成
+● 检查成片响度
+● 响度归一完成
+└ -18.7 → -14 LUFS(真峰值 ≤ -1.5dB)
+● 完成 → ./osaka-trip/output/osaka-trip.mp4
 ```
 
 `lyrics` lists every line with timestamps and confidence; lines below the render threshold (0.6) are flagged — check recognition quality before spending minutes on a render.
@@ -96,6 +122,8 @@ node cli/tsuzuri.mjs help                       # usage (same as -h / --help)
 No cloud, no API keys. The Whisper backend matches your hardware automatically (Apple Silicon → mlx / NVIDIA → CUDA / otherwise CPU int8); if huggingface.co is unreachable, the one-time model download switches to the hf-mirror.com mirror. Noto Serif JP / SC / Latin fonts (SIL OFL 1.1) are bundled for fully offline rendering.
 
 **Platforms**: tested on macOS (Apple Silicon); Linux should work (faster-whisper CPU / CUDA paths); Windows is code-compatible but untested — feedback welcome.
+
+**Windows notes**: use [Windows Terminal](https://aka.ms/terminal) (UTF-8 by default); legacy cmd with a CJK codepage (CP936) garbles symbols like `●` `└` — run `chcp 65001` first. External dependencies (`uv` / `ffmpeg`) are plain .exe binaries, command spawning and path handling are written cross-platform, and the interactive menu's numbered choices work in cmd / PowerShell / Windows Terminal alike.
 
 ## FAQ
 
