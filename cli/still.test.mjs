@@ -26,6 +26,16 @@ test('single-file non-PNG output extension is rejected', () => {
   assert.throws(() => resolveJobs(photo, path.join(dir, 'out.jpg')), CliError);
 });
 
+test('a trailing separator on -o marks directory intent even before the directory exists', () => {
+  const dir = fixture();
+  const photo = path.join(dir, 'IMG.jpg');
+  fs.writeFileSync(photo, 'x');
+  // `\` 结尾只在 win32 视为分隔符(POSIX 上是合法文件名字符),此处只验证 `/`
+  const job = resolveJobs(photo, `${path.join(dir, 'cards')}/`, true).jobs[0];
+  assert.equal(path.basename(path.dirname(job.outPath)), 'cards');
+  assert.equal(path.basename(job.outPath), 'IMG-exif.png');
+});
+
 test('same-stem batch sources retain their source extension', () => {
   const dir = fixture();
   fs.writeFileSync(path.join(dir, 'a.jpg'), 'x');

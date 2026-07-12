@@ -90,7 +90,11 @@ export const resolveJobs = (target, output, exif = false, sign = false) => {
     let outPath;
     if (output) {
       const outResolved = path.resolve(output);
-      if (outResolved.endsWith(path.sep) || (fs.existsSync(outResolved) && fs.statSync(outResolved).isDirectory())) {
+      // 目录意图看原始输入的结尾分隔符(path.resolve 会吞掉它);
+      // `/` 两平台通吃,`\` 只在 Windows 是分隔符(POSIX 上是合法文件名字符)
+      const dirIntent =
+        output.endsWith('/') || (process.platform === 'win32' && output.endsWith('\\'));
+      if (dirIntent || (fs.existsSync(outResolved) && fs.statSync(outResolved).isDirectory())) {
         outPath = path.join(outResolved, filename);
       } else if (path.extname(outResolved).toLowerCase() === '.png' || path.extname(outResolved) === '') {
         outPath = path.extname(outResolved) ? outResolved : `${outResolved}.png`;
