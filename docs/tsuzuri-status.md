@@ -27,7 +27,7 @@
 
 ## 待办 / 已知问题
 
-- **增量缓存不认 analyzer 代码版本(2026-07-11 排查记录)**:CLI 的跳过重新规划机制只对比素材内容哈希(音频/照片/tsuzuri.toml/lrc),不感知 `plan.py`/`beat_alloc.py` 代码是否变过。改了分配算法后,已经跑过的旧文件夹会继续复用旧 `metadata/timeline.json`,新逻辑不会生效——需手动 `rm -rf metadata` 后重跑。今天头尾预留功能上线后曾误判"片头没显示"是新 bug,排查后确认是吃了旧 timeline.json(两组对照实验验证:全新文件夹片头正常;手工构造无预留的旧版 timeline.json + 匹配哈希 → 复用旧值)。暂不打算自动感知代码版本(会引入"改动分析算法后所有已有素材静默重渲"的意外行为,用户预期需先确认),先记录进已知限制。
+- **增量缓存不认 analyzer 代码版本 → 已修复(2026-07-12)**:原问题(2026-07-11 排查):CLI 只对比素材内容哈希,改了分配算法后旧文件夹继续复用旧 `metadata/timeline.json`,曾误判"片头没显示"是新 bug(实为吃了旧 timeline)。修复方案:`plan.py` 生成时写入 `meta.plan_checksum`(整份文档去掉该字段后 `json.dumps(sort_keys=True, ensure_ascii=False)` 的 sha256 前 16 位);素材未变时规划步骤照常运行,由 plan.py 自判——校验和吻合说明文件从未被手动碰过,放心用最新算法覆盖刷新(悄悄升级);不吻合判定手改,原样保留并提示。整文档校验(而非只挑 photos/subtitles/beats 字段)是方案评审的强制修订:否则手改 `meta.photo_scale` 之类会被静默覆盖。CLI 侧 `skipPlan` 改名 `skipAnalyze`,只跳过音频分析。beats.json 缺失时退回保留现状而非报错。测试:`analyzer/tests/test_plan_hand_edit_preservation.py` 8 条(含 meta 字段护栏测试);两组 E2E 对照实验分别验证自动刷新与手改保留路径。**遗留一次性成本**:功能上线前生成的旧 timeline.json 没有 plan_checksum,保守视为"可能手改过"而保留——旧文件夹想吃到新算法需手动 `rm -rf metadata` 一次。
 
 - M1 视觉验收最后一步需要用用户真实素材检查三层阴影、横竖图和字幕带位置。
 - M2 验收项:用 3–5 首真实歌曲实测节拍准确度,不准的记录作为 madmom 升级依据。
