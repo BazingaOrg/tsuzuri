@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import tomllib
@@ -61,6 +62,21 @@ SHOW_INTRO_MIN_T = INTRO_DURATION + WHITE_FADE_DURATION + MIN_PHOTO_VISIBLE  # 5
 SHOW_INTRO_MIN_PHOTO0_END = INTRO_DURATION + MIN_PHOTO_VISIBLE  # 3.45
 
 DATETIME_ORIGINAL = next(k for k, v in ExifTags.TAGS.items() if v == "DateTimeOriginal")
+
+
+def _content_checksum(timeline: dict) -> str:
+    """整份 timeline(除 meta.plan_checksum 自身外)的内容校验和。
+
+    用途:区分"素材没变、文件也没被手动碰过"(校验和吻合 → 可放心用最新
+    算法覆盖刷新)和"素材没变但文件被手改过"(校验和不吻合 → 手改优先,
+    原样保留)。故意覆盖整份文档而非挑选字段——防止漏掉某个字段(例如
+    meta.photo_scale 这类用户可能直接手改的值)导致手改被静默覆盖;
+    以后 build_timeline 加新字段也自动纳入,不用记得同步维护校验范围。
+    """
+    meta = {k: v for k, v in timeline.get("meta", {}).items() if k != "plan_checksum"}
+    payload = {**timeline, "meta": meta}
+    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
 def load_config(folder: Path) -> dict:
@@ -212,12 +228,14 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     if input_hash:
         meta["input_hash"] = input_hash
 
-    return {
+    result = {
         "meta": meta,
         "photos": clips,
         "subtitles": lyrics,
         "beats": {"bpm": beats["bpm"], "downbeats": beats["downbeats"]},
     }
+    result["meta"]["plan_checksum"] = _content_checksum(result)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -235,8 +253,36 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     metadata_dir = folder / "metadata"
+    out = args.output or metadata_dir / "timeline.json"
+    existing = None
+    if out.is_file():
+        try:
+            existing = json.loads(out.read_text(encoding="utf-8"))
+        except Exception:
+            existing = None
+
+    # 素材是否与现有 timeline.json 匹配(input_hash 相同,即"这份文件是不是
+    # 针对当前这批素材算出来的")。只有匹配时,才有资格判断"要不要用最新
+    # 算法刷新它"——素材本身变了,理应完整重新规划,与手改保护无关。
+    material_matches = bool(
+        existing and args.input_hash and existing.get("meta", {}).get("input_hash") == args.input_hash
+    )
+
+    if material_matches:
+        if _content_checksum(existing) != existing.get("meta", {}).get("plan_checksum"):
+            # 校验和对不上 = 文件内容与"某次 plan 本该产出的结果"不一致 → 手改过。
+            # 手改优先,原样保留,不读 beats.json、不触碰任何依赖
+            term.warn("timeline.json 内容已被手动修改,保留手改结果,不重新生成")
+            return 0
+        term.detail("timeline.json 未被手动修改,使用最新算法重新生成")
+
     beats_path = args.beats or metadata_dir / "beats.json"
     if not beats_path.is_file():
+        if material_matches:
+            # 本来打算用最新算法刷新,但 beats.json 缺失(如被手动删除)——
+            # 退回保留现有文件,而不是报错中断(它仍是对应当前素材的有效结果)
+            term.warn(f"找不到 beats.json: {beats_path},保留现有 timeline.json(先跑 tsuzuri-analyze 才能应用最新算法)")
+            return 0
         term.error(f"找不到 beats.json: {beats_path}(先跑 tsuzuri-analyze)")
         return 1
     beats = json.loads(beats_path.read_text(encoding="utf-8"))
@@ -263,7 +309,6 @@ def main(argv: list[str] | None = None) -> int:
 
     timeline = build_timeline(folder, beats, lyrics, cfg, args.input_hash)
 
-    out = args.output or metadata_dir / "timeline.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
     n = len(timeline["photos"])

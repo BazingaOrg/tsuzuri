@@ -110,13 +110,13 @@ const main = () => {
   const hash = computeInputHash(folder, hashFiles);
 
   const timelinePath = project.timelinePath;
-  let skipPlan = false;
+  let skipAnalyze = false;
   if (fs.existsSync(timelinePath)) {
     try {
       const existing = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
       if (existing?.meta?.input_hash === hash) {
-        skipPlan = true;
-        term.warn('输入未变,跳过分析与规划,直接渲染现有 timeline.json(手改生效)');
+        skipAnalyze = true;
+        term.detail('输入未变,跳过音频分析');
       } else {
         term.detail(existing?.meta?.input_hash ? '素材有变化,重新分析规划' : 'timeline.json 缺少 input_hash,重新分析规划');
       }
@@ -125,8 +125,8 @@ const main = () => {
     }
   }
 
-  if (!skipPlan) {
-    const analyzer = path.join(REPO, 'analyzer');
+  const analyzer = path.join(REPO, 'analyzer');
+  if (!skipAnalyze) {
     term.start('分析音频');
     const analyzeArgs = [
       'run', '--project', analyzer, 'tsuzuri-analyze', path.join(folder, audio),
@@ -134,21 +134,24 @@ const main = () => {
       '--lyrics-output', project.lyricsPath,
     ];
     if (lyrics) analyzeArgs.push('--lyrics-file', path.join(folder, lyrics));
-    let code = run('分析音频', 'uv', analyzeArgs);
+    const code = run('分析音频', 'uv', analyzeArgs);
     if (code !== 0) return code;
     term.success('音频分析完成');
-
-    term.start('规划照片时间线');
-    code = run('规划照片时间线', 'uv', [
-      'run', '--project', analyzer, 'tsuzuri-plan', folder,
-      '--beats', project.beatsPath,
-      '--lyrics', project.lyricsPath,
-      '--input-hash', hash,
-      '-o', project.timelinePath,
-    ]);
-    if (code !== 0) return code;
-    term.success('照片时间线规划完成');
   }
+
+  // 规划步骤总是运行,即便素材未变:是否需要用最新算法刷新 timeline.json
+  // 交给 plan.py 自己判断——它靠内容校验和识别文件是否被手动改过,手改过就
+  // 原样保留,没被动过就悄悄升级到最新分配算法(见 plan.py _content_checksum)
+  term.start('规划照片时间线');
+  const planCode = run('规划照片时间线', 'uv', [
+    'run', '--project', analyzer, 'tsuzuri-plan', folder,
+    '--beats', project.beatsPath,
+    '--lyrics', project.lyricsPath,
+    '--input-hash', hash,
+    '-o', project.timelinePath,
+  ]);
+  if (planCode !== 0) return planCode;
+  term.success('照片时间线规划完成');
 
   const tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   const n = tl.photos.length;
