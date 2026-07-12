@@ -38,14 +38,11 @@ def frange(start: float, stop: float, step: float):
 
 
 class TestBrandingPassthrough:
-    def test_defaults_write_branding_without_signature(self, tmp_path: Path):
+    def test_defaults_leave_branding_to_renderer(self, tmp_path: Path):
         make_photos(tmp_path)
         cfg = dict(plan.DEFAULTS)
         timeline = build_timeline(tmp_path, make_beats(), [], cfg, None)
-        branding = timeline["meta"]["branding"]
-        assert branding["outro_text"] == "Thanks for watching :)"
-        assert branding["intro"] is True
-        assert "signature" not in branding
+        assert "branding" not in timeline["meta"]
 
     def test_toml_outro_and_intro_false(self, tmp_path: Path):
         make_photos(tmp_path)
@@ -100,6 +97,7 @@ class TestBrandingPassthrough:
         on = build_timeline(tmp_path, beats, [], dict(plan.DEFAULTS), None)
         off_cfg = dict(plan.DEFAULTS)
         off_cfg["intro"] = False
+        off_cfg["_explicit_branding"] = {"intro"}
         off = build_timeline(tmp_path, beats, [], off_cfg, None)
         # 同素材:开片头时预留抬高首切;关片头时不预留,首切更早
         assert on["photos"][0]["end"] >= plan.SHOW_INTRO_MIN_PHOTO0_END

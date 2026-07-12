@@ -187,6 +187,7 @@ class TestIntroConfigOff:
         with_intro = build_timeline(tmp_path, beats, [], dict(plan.DEFAULTS), None)
         cfg = dict(plan.DEFAULTS)
         cfg["intro"] = False
+        cfg["_explicit_branding"] = {"intro"}
         without = build_timeline(tmp_path, beats, [], cfg, None)
         # 开片头预留抬高首切;intro=false 不预留 → 首切更早,两端端也不挂 Intro
         assert with_intro["photos"][0]["end"] >= SHOW_INTRO_MIN_PHOTO0_END

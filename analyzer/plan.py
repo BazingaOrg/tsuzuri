@@ -38,8 +38,8 @@ DEFAULTS = {
     "trim_avg_threshold": 10.0,  # 人均展示超过此值 → 裁剪音频
     "trim_target_avg": 8.0,      # 裁剪目标:人均展示秒数
     "subtitles": True,           # 字幕轨总开关
-    # 片头/片尾个性化 → meta.branding;默认与渲染器内置一致
-    "outro_text": "Thanks for watching :)",
+    # 片头/片尾运行默认仅用于规划;展示默认值的单一来源在 renderer/theme.ts
+    "outro_text": "",
     "signature": "",             # 空串 = 内置签名;非空为素材夹内 .svg 相对路径
     "intro": True,               # false 时跳过片头且 plan 不预留片头时长
 }
@@ -109,6 +109,7 @@ def _validate_branding(cfg: dict, folder: Path) -> None:
 
 def load_config(folder: Path) -> dict:
     cfg = dict(DEFAULTS)
+    explicit_branding: set[str] = set()
     toml_path = folder / "tsuzuri.toml"
     if toml_path.is_file():
         with toml_path.open("rb") as f:
@@ -123,6 +124,8 @@ def load_config(folder: Path) -> dict:
         if unknown:
             term.warn(f"tsuzuri.toml 中未知配置项被忽略: {sorted(unknown)}")
         cfg.update({k: v for k, v in user.items() if k in DEFAULTS})
+        explicit_branding = set(user) & {"outro_text", "signature", "intro"}
+    cfg["_explicit_branding"] = explicit_branding
     _validate_branding(cfg, folder)
     return cfg
 
@@ -251,11 +254,13 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
             "motion": dict(motion),
         })
 
-    branding: dict = {
-        "outro_text": cfg["outro_text"],
-        "intro": bool(cfg["intro"]),
-    }
-    if cfg.get("signature"):
+    explicit_branding = cfg.get("_explicit_branding", set())
+    branding: dict = {}
+    if "outro_text" in explicit_branding:
+        branding["outro_text"] = cfg["outro_text"]
+    if "intro" in explicit_branding:
+        branding["intro"] = bool(cfg["intro"])
+    if "signature" in explicit_branding:
         branding["signature"] = cfg["signature"]
 
     meta = {
@@ -267,8 +272,9 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
         "fps": cfg["fps"],
         "background": cfg["background"],
         "photo_scale": cfg["photo_scale"],
-        "branding": branding,
     }
+    if branding:
+        meta["branding"] = branding
     if input_hash:
         meta["input_hash"] = input_hash
 
@@ -325,9 +331,9 @@ def main(argv: list[str] | None = None) -> int:
         if material_matches:
             # 本来打算用最新算法刷新,但 beats.json 缺失(如被手动删除)——
             # 退回保留现有文件,而不是报错中断(它仍是对应当前素材的有效结果)
-            term.warn(f"找不到 beats.json: {beats_path},保留现有 timeline.json(先跑 tsuzuri-analyze 才能应用最新算法)")
+            term.warn(f"找不到 beats.json: {beats_path},保留现有 timeline.json(正常流程由 tsuzuri <folder> 自动生成;单独调试可用 uv run tsuzuri-analyze)")
             return 0
-        term.error(f"找不到 beats.json: {beats_path}(先跑 tsuzuri-analyze)")
+        term.error(f"找不到 beats.json: {beats_path}(正常流程由 tsuzuri <folder> 自动生成;单独调试可用 uv run tsuzuri-analyze)")
         return 1
     beats = json.loads(beats_path.read_text(encoding="utf-8"))
 

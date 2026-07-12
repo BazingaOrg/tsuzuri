@@ -117,6 +117,7 @@ export const useSignatureData = (src?: string): SignatureData | null => {
     }
     const handle = delayRender(`Load signature SVG: ${src}`);
     let cancelled = false;
+    let settled = false;
     (async () => {
       try {
         const url = staticFile(src.replace(/^\.\//, ''));
@@ -128,15 +129,18 @@ export const useSignatureData = (src?: string): SignatureData | null => {
         const parsed = parseSignatureSvg(text);
         if (cancelled) return;
         setData(parsed);
+        settled = true;
         continueRender(handle);
       } catch (error) {
         if (cancelled) return;
         // 解析失败/文件缺失 → 终止渲染,不静默回退内置签名
+        settled = true;
         cancelRender(error instanceof Error ? error : new Error(String(error)));
       }
     })();
     return () => {
       cancelled = true;
+      if (!settled) continueRender(handle);
     };
   }, [src]);
 
