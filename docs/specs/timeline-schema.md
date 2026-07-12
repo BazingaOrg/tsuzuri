@@ -28,6 +28,10 @@ analyze/plan(Python)与 render(Remotion)之间的唯一契约。photos 与 subti
 | `background` | string | 默认 `#FFFFFF` |
 | `photo_scale` | float | 默认 `0.8`,定义照片 fit 安全框占画布宽高的比例;照片在整个可见区间保持固定几何尺寸 |
 | `input_hash` | string? | CLI 写入的输入素材 hash,用于区分"手改 timeline"与"素材变了" |
+| `branding` | object? | 片头/片尾个性化;缺省字段走渲染器内置默认(老 timeline 无此字段时行为不变) |
+| `branding.outro_text` | string? | 片尾谢幕语;空串 `""` 隐藏;缺省 `"Thanks for watching :)"` |
+| `branding.signature` | string? | 签名 SVG 相对素材根目录;缺省用内置签名 |
+| `branding.intro` | bool? | 片头开关;缺省 `true`;`false` 时 plan 与渲染器均跳过片头 |
 
 ## photos[]
 

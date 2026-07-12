@@ -29,6 +29,16 @@ export type SubtitleLine = {
   confidence: number;
 };
 
+/** 片头/片尾个性化;缺省字段走渲染器内置默认,与不写 branding 等价。 */
+export type Branding = {
+  /** 片尾谢幕语;缺省 "Thanks for watching :)";空串 "" 隐藏文案 */
+  outro_text?: string;
+  /** 素材文件夹内的签名 SVG 相对路径;缺省用内置签名 */
+  signature?: string;
+  /** 片头总开关;false 时跳过片头(plan 同步不预留时长) */
+  intro?: boolean;
+};
+
 export type TimelineMeta = {
   version: number;
   audio: string;
@@ -39,6 +49,7 @@ export type TimelineMeta = {
   background: string;
   photo_scale: number;
   input_hash?: string;
+  branding?: Branding;
 };
 
 export type Timeline = {

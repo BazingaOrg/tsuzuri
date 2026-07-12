@@ -38,6 +38,10 @@ DEFAULTS = {
     "trim_avg_threshold": 10.0,  # 人均展示超过此值 → 裁剪音频
     "trim_target_avg": 8.0,      # 裁剪目标:人均展示秒数
     "subtitles": True,           # 字幕轨总开关
+    # 片头/片尾个性化 → meta.branding;默认与渲染器内置一致
+    "outro_text": "Thanks for watching :)",
+    "signature": "",             # 空串 = 内置签名;非空为素材夹内 .svg 相对路径
+    "intro": True,               # false 时跳过片头且 plan 不预留片头时长
 }
 
 # 属于其他阶段的合法配置键,plan 不消费但不该告警
@@ -79,6 +83,30 @@ def _content_checksum(timeline: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
+def _validate_branding(cfg: dict, folder: Path) -> None:
+    """校验 branding 相关配置;失败直接退出(不静默回退)。"""
+    sig = cfg.get("signature") or ""
+    if not isinstance(sig, str):
+        term.error(f"tsuzuri.toml: signature 必须是字符串,收到 {type(sig).__name__}")
+        raise SystemExit(1)
+    if sig:
+        if not sig.lower().endswith(".svg"):
+            term.error(f"tsuzuri.toml: signature 必须是 .svg 文件,收到 {sig!r}")
+            raise SystemExit(1)
+        sig_path = folder / sig
+        if not sig_path.is_file():
+            term.error(f"tsuzuri.toml: 找不到签名 SVG: {sig_path}")
+            raise SystemExit(1)
+    if not isinstance(cfg.get("outro_text"), str):
+        term.error(
+            f"tsuzuri.toml: outro_text 必须是字符串,收到 {type(cfg.get('outro_text')).__name__}"
+        )
+        raise SystemExit(1)
+    if not isinstance(cfg.get("intro"), bool):
+        term.error(f"tsuzuri.toml: intro 必须是布尔值,收到 {type(cfg.get('intro')).__name__}")
+        raise SystemExit(1)
+
+
 def load_config(folder: Path) -> dict:
     cfg = dict(DEFAULTS)
     toml_path = folder / "tsuzuri.toml"
@@ -95,6 +123,7 @@ def load_config(folder: Path) -> dict:
         if unknown:
             term.warn(f"tsuzuri.toml 中未知配置项被忽略: {sorted(unknown)}")
         cfg.update({k: v for k, v in user.items() if k in DEFAULTS})
+    _validate_branding(cfg, folder)
     return cfg
 
 
@@ -169,15 +198,22 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     # 整体右移 INTRO_DURATION,并抬高首个切换点下界,保证片头盖完后首张照片仍
     # 有意义的可见时长。快闪模式天然产出很短的首段(<3s),渲染端会自动跳过片头,
     # 强行预留反而会挤占本就紧张的切换空间,故不预留。
+    # intro=false 时两端都不挂片头,也不预留(单一事实来源是 toml)。
     #
     # n == 2 时只有一个切换点,须同时满足头(>= SHOW_INTRO_MIN_PHOTO0_END)与
     # 尾(<= duration - WHITE_FADE_DURATION - MIN_PHOTO_VISIBLE)两个约束,可行
     # 窗口非空要求 duration >= SHOW_INTRO_MIN_T + MIN_PHOTO_VISIBLE(6.75s),
     # 比 n>=3 时头尾分属不同切换点的门槛(5.95s)更紧;否则窄窗口内找不到候选
     # 会直接丢弃第二张照片(min_gap 优先于预留,详见 beat_alloc 回退分支)。
+    intro_enabled = bool(cfg.get("intro", True))
     min_duration_for_reserve = SHOW_INTRO_MIN_T + (MIN_PHOTO_VISIBLE if n == 2 else 0.0)
     head_offset = 0.0
-    if not is_flash and duration >= min_duration_for_reserve and n >= 2:
+    if (
+        intro_enabled
+        and not is_flash
+        and duration >= min_duration_for_reserve
+        and n >= 2
+    ):
         not_before = max(not_before, SHOW_INTRO_MIN_PHOTO0_END)
         head_offset = INTRO_DURATION
 
@@ -215,6 +251,13 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
             "motion": dict(motion),
         })
 
+    branding: dict = {
+        "outro_text": cfg["outro_text"],
+        "intro": bool(cfg["intro"]),
+    }
+    if cfg.get("signature"):
+        branding["signature"] = cfg["signature"]
+
     meta = {
         "version": 1,
         "audio": f"./{beats['audio']}",
@@ -224,6 +267,7 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
         "fps": cfg["fps"],
         "background": cfg["background"],
         "photo_scale": cfg["photo_scale"],
+        "branding": branding,
     }
     if input_hash:
         meta["input_hash"] = input_hash

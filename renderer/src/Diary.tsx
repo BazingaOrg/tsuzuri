@@ -9,6 +9,7 @@ import {
 } from 'remotion';
 import './fonts';
 import {Intro, introDuration} from './Intro';
+import {Outro} from './Outro';
 import {Photo} from './Photo';
 import {Subtitle} from './Subtitle';
 import {ANIMATION, INTRO, OUTRO, SUBTITLE} from './theme';
@@ -61,13 +62,20 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
   const whiteFadeStart = Math.max(0, durationInFrames - Math.round(ANIMATION.whiteFadeDuration * fps));
   const whiteFade = interpolate(frame, [whiteFadeStart, durationInFrames - 1], [0, 1], clamp);
 
-  // 片头跳过规则:第一张照片被盖太多,或总时长短到片头会撞上片尾白场
+  // 片头跳过规则:配置关闭、第一张照片被盖太多,或总时长短到片头会撞上片尾白场
+  const introEnabled = meta.branding?.intro !== false;
   const showIntro =
+    introEnabled &&
     photos.length > 0 &&
     photos[0].end >= introDuration + INTRO.minPhotoVisible &&
     durationInFrames / fps >= introDuration + ANIMATION.whiteFadeDuration + INTRO.minPhotoVisible;
 
-  const outroOpacity = interpolate(whiteFade, [...OUTRO.fadeRange], [0, 1], clamp);
+  const outroText = meta.branding?.outro_text ?? OUTRO.text;
+  const outroOpacity =
+    outroText === ''
+      ? 0
+      : interpolate(whiteFade, [...OUTRO.fadeRange], [0, 1], clamp);
+  const signatureSrc = meta.branding?.signature?.replace(/^\.\//, '');
 
   return (
     <AbsoluteFill style={{backgroundColor: meta.background}}>
@@ -95,28 +103,16 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
       {whiteFade > 0 ? (
         <AbsoluteFill style={{backgroundColor: meta.background, opacity: whiteFade}} />
       ) : null}
-      {/* 谢幕语:白场过半后浮现,持续到最后一帧 */}
-      {outroOpacity > 0 ? (
-        <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center'}}>
-          <div
-            style={{
-              fontFamily: OUTRO.fontFamily,
-              fontSize: OUTRO.fontSize * scale,
-              fontWeight: OUTRO.fontWeight,
-              letterSpacing: OUTRO.letterSpacing,
-              color: OUTRO.color,
-              opacity: outroOpacity,
-              transform: `translateY(${(1 - outroOpacity) * OUTRO.riseDistance * scale}px)`,
-            }}
-          >
-            {OUTRO.text}
-          </div>
-        </AbsoluteFill>
-      ) : null}
+      {/* 谢幕语:白场过半后浮现,持续到最后一帧;空串隐藏 */}
+      <Outro text={outroText} scale={scale} opacity={outroOpacity} />
       {/* 片头写签名:盖在一切之上,淡出后露出已在播放的第一页。
           按帧比较,避免浮点求和导致收尾帧(opacity 归零帧)被提前跳过 */}
       {showIntro && frame <= Math.round(introDuration * fps) ? (
-        <Intro backgroundColor={meta.background} scale={scale} />
+        <Intro
+          backgroundColor={meta.background}
+          scale={scale}
+          signatureSrc={signatureSrc}
+        />
       ) : null}
     </AbsoluteFill>
   );

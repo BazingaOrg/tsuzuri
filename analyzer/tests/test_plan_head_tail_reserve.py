@@ -180,6 +180,20 @@ class TestHeadTailInvariant:
         assert renderer_shows_intro(photo0_end, total) == (total >= SHOW_INTRO_MIN_T)
 
 
+class TestIntroConfigOff:
+    def test_intro_false_skips_head_reserve_even_when_long_enough(self, tmp_path: Path):
+        make_photos(tmp_path, 6)
+        beats = make_beats(60.0)
+        with_intro = build_timeline(tmp_path, beats, [], dict(plan.DEFAULTS), None)
+        cfg = dict(plan.DEFAULTS)
+        cfg["intro"] = False
+        without = build_timeline(tmp_path, beats, [], cfg, None)
+        # 开片头预留抬高首切;intro=false 不预留 → 首切更早,两端端也不挂 Intro
+        assert with_intro["photos"][0]["end"] >= SHOW_INTRO_MIN_PHOTO0_END
+        assert without["photos"][0]["end"] < with_intro["photos"][0]["end"]
+        assert without["meta"]["branding"]["intro"] is False
+
+
 class TestConstantsMirrorSanity:
     def test_show_intro_thresholds_are_positive_and_ordered(self):
         # 基本防呆:片头预留下界应小于总时长门槛(否则预留逻辑自相矛盾)

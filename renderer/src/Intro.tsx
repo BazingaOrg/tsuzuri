@@ -1,6 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
-import {Signature, SIGNATURE_VIEWBOX} from './Signature';
+import {Signature, useSignatureData} from './Signature';
 import {INTRO} from './theme';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
@@ -8,32 +8,26 @@ const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 export const introDuration =
   INTRO.drawDuration + INTRO.inkDuration + INTRO.hold + INTRO.fadeOut;
 
-// 签名路径总长(渲染所用 chrome-headless-shell 中 getTotalLength() 实测值)。
-// 注意不能用 pathLength="100" 归一化:Chrome 对多子路径 <path> 设置
-// pathLength 后会整体禁用虚线(实测),故直接采用真实长度。
-const SIGNATURE_PATH_TOTAL_LENGTH = 2109.58;
-
 /**
  * 片头:白画布上签名沿笔迹"写"出来,再"上墨"填充。
  * 经典虚线偏移手法:stroke-dasharray = 路径总长,dashoffset 从总长到 0,
  * 实线段沿路径滑入,视觉上如笔沿字迹书写;CSS animation 在 Remotion
  * 不可用,由 useCurrentFrame 逐帧驱动同一原理。
+ *
+ * 多 path 自定义签名时各笔画并行书写(各自 dasharray = 自身长度),
+ * 总时长仍为 introDuration,plan 侧 INTRO_DURATION 无需改动。
  */
-export const Intro: React.FC<{backgroundColor: string; scale: number}> = ({
-  backgroundColor,
-  scale,
-}) => {
+export const Intro: React.FC<{
+  backgroundColor: string;
+  scale: number;
+  /** 素材文件夹内签名 SVG 相对路径;缺省用内置签名 */
+  signatureSrc?: string;
+}> = ({backgroundColor, scale, signatureSrc}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const t = frame / fps;
+  const signature = useSignatureData(signatureSrc);
 
-  // 书写:描边沿笔迹画出(慢起 → 匀速 → 缓收)
-  const dashOffset = interpolate(
-    t,
-    [0, INTRO.drawDuration],
-    [SIGNATURE_PATH_TOTAL_LENGTH, 0],
-    {...clamp, easing: Easing.bezier(0.35, 0, 0.55, 1)},
-  );
   // 上墨:书写收尾后填充淡入,如墨水晕开;描边同步让位
   const inkStart = INTRO.drawDuration;
   const fillOpacity = interpolate(t, [inkStart, inkStart + INTRO.inkDuration], [0, 1], clamp);
@@ -45,8 +39,19 @@ export const Intro: React.FC<{backgroundColor: string; scale: number}> = ({
     clamp,
   );
 
+  // 自定义签名尚未测长完成时先占位空卡(delayRender 会挡住真正出帧)
+  if (!signature) {
+    return <AbsoluteFill style={{backgroundColor, opacity: cardOpacity}} />;
+  }
+
   const height = INTRO.height * scale;
-  const width = height * (SIGNATURE_VIEWBOX.width / SIGNATURE_VIEWBOX.height);
+  const width = height * (signature.viewBox.width / signature.viewBox.height);
+
+  // 书写进度 1→0(dashoffset 系数),各 path 乘以自身 length
+  const drawProgress = interpolate(t, [0, INTRO.drawDuration], [1, 0], {
+    ...clamp,
+    easing: Easing.bezier(0.35, 0, 0.55, 1),
+  });
 
   return (
     <AbsoluteFill
@@ -58,14 +63,15 @@ export const Intro: React.FC<{backgroundColor: string; scale: number}> = ({
       }}
     >
       <Signature
+        data={signature}
         style={{width, height, color: INTRO.color, opacity: INTRO.opacity, display: 'block'}}
-        pathProps={{
+        pathProps={(path) => ({
           fillOpacity,
           stroke: 'currentColor',
           strokeWidth: INTRO.strokeWidth,
-          strokeDasharray: SIGNATURE_PATH_TOTAL_LENGTH,
-          strokeDashoffset: dashOffset,
-        }}
+          strokeDasharray: path.length,
+          strokeDashoffset: path.length * drawProgress,
+        })}
       />
     </AbsoluteFill>
   );

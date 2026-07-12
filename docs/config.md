@@ -34,6 +34,23 @@
 | `subtitles` | `true` | 字幕轨总开关;关掉后既不识别也不渲染 |
 | `demucs` | `true` | Whisper 识别置信度低时,是否尝试 demucs 人声分离后重识别一次(需 `cd analyzer && uv sync --extra separation`) |
 
+## 片头 / 片尾(branding)
+
+写入 `timeline.json` 的 `meta.branding`;不配置时与内置默认逐帧一致。
+
+| 键 | 默认值 | 说明 |
+| --- | --- | --- |
+| `outro_text` | `"Thanks for watching :)"` | 片尾谢幕语;设为 `""` 隐藏文案(片尾白场时长不变) |
+| `signature` | *(内置)* | 素材文件夹内的签名 SVG 相对路径;缺省用内置 Sacramento 手写签名 |
+| `intro` | `true` | 片头总开关;`false` 时 plan 不预留片头时长,渲染器不挂载片头 |
+
+### 自定义签名 SVG 约束
+
+- 轮廓填充型路径(与内置字形同型),单色;`fill` 任意(渲染时强制 `currentColor`)
+- **必须有 `viewBox`**;只识别 `<path>`(若含 text/rect 等请先转路径)
+- 多笔画会**并行**书写,总时长不变
+- 文件缺失或解析失败会**报错终止**,不静默回退内置签名
+
 ## 示例
 
 ```toml
@@ -42,4 +59,7 @@ fps = 30                 # 提速:渲染时间近似减半
 photo_scale = 0.85
 transition = "crossfade"
 subtitles = false        # 纯音乐相册,不要字幕
+outro_text = "谢谢观看"
+signature = "signature.svg"
+# intro = false          # 不要片头
 ```
