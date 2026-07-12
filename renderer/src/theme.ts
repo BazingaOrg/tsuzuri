@@ -89,3 +89,28 @@ export const FONT_FAMILY = {
   en: `'Noto Serif', serif`,
   mixed: `'Noto Serif', 'Noto Serif JP', 'Noto Serif SC', serif`,
 } as const;
+
+/** still 导出布局(1080p 基准比例;非 1080p 输出随画布自然缩放)。 */
+export const STILL = {
+  // 无 EXIF:与视频照片页一致,用 meta.photo_scale(默认 0.8)
+  // 有 EXIF:展签布局——照片限位收紧,给右侧信息面板留位
+  withExif: {
+    photoMaxHeight: 0.72, // × 画布高
+    photoMaxWidth: 0.52, // × 画布宽
+    panelWidth: 0.24, // × 画布宽
+    gap: 0.05, // × 画布宽
+  },
+  typography: {
+    // 参数行为视觉主角(字号同字幕 36);相机/镜头次之;时间最小用 INFO_BAR 灰
+    paramsFontSize: 36,
+    cameraFontSize: 28,
+    lensFontSize: 24,
+    datetimeFontSize: 20,
+    lineGap: 10, // 行间距(px,1080p)
+    groupGap: 28, // 相机组与参数组、参数组与时间之间
+    fontFamily: `'Noto Serif', 'Noto Serif JP', 'Noto Serif SC', serif`,
+    color: '#37332D',
+    datetimeColor: '#B0AEA6', // INFO_BAR
+    letterSpacing: '0.12em',
+  },
+} as const;

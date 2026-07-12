@@ -1,6 +1,6 @@
 import React from 'react';
-import {AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
-import {PHOTO, getPhotoShadow} from './theme';
+import {AbsoluteFill, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {FramedPhoto} from './FramedPhoto';
 import {getFadeDuration} from './transition';
 import type {PhotoClip} from './types';
 
@@ -30,8 +30,6 @@ export const Photo: React.FC<{
         ? 1
         : 0;
   const renderScale = height / 1080;
-  const outlineWidth = PHOTO.outlineWidth * renderScale;
-  const boxShadow = React.useMemo(() => getPhotoShadow(renderScale), [renderScale]);
 
   return (
     <AbsoluteFill
@@ -42,17 +40,11 @@ export const Photo: React.FC<{
         opacity: fadeIn,
       }}
     >
-      <Img
+      <FramedPhoto
         src={toStatic(clip.src)}
-        style={{
-          maxWidth: safeWidth,
-          maxHeight: safeHeight,
-          width: 'auto',
-          height: 'auto',
-          boxShadow,
-          outline: `${outlineWidth}px solid ${PHOTO.outlineColor}`,
-          outlineOffset: `${-outlineWidth}px`,
-        }}
+        maxWidth={safeWidth}
+        maxHeight={safeHeight}
+        renderScale={renderScale}
       />
     </AbsoluteFill>
   );

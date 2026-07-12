@@ -8,5 +8,8 @@
   },
   "bin": {
     "tsuzuri": "./tsuzuri.mjs"
+  },
+  "dependencies": {
+    "exifr": "^7.1.3"
   }
 }

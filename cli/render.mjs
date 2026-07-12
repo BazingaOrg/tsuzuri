@@ -2,14 +2,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import {createRequire} from 'node:module';
-import {fileURLToPath} from 'node:url';
 
+import {bundleRenderer, loadRemotionRenderer} from './bundle.mjs';
 import {createPercentProgress} from './progress.mjs';
-
-const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const RENDERER = path.join(REPO, 'renderer');
-const requireRenderer = createRequire(path.join(RENDERER, 'package.json'));
 
 const main = async () => {
   const [timelineArg, outputArg, publicDirArg] = process.argv.slice(2);
@@ -21,35 +16,18 @@ const main = async () => {
   const outputPath = path.resolve(outputArg);
   const publicDir = path.resolve(publicDirArg);
   const inputProps = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
-  const {bundle} = requireRenderer('@remotion/bundler');
-  const {renderMedia, selectComposition} = requireRenderer('@remotion/renderer');
+  const {renderMedia, selectComposition} = loadRemotionRenderer();
   const progress = createPercentProgress();
-  let bundleDir = null;
+  let cleanup = () => {};
 
   try {
-    const serveUrl = await bundle({
-      entryPoint: path.join(RENDERER, 'src/index.ts'),
-      publicDir,
-      rootDir: RENDERER,
-      symlinkPublicDir: true,
-      onDirectoryCreated: (directory) => {
-        bundleDir = directory;
-      },
+    const bundled = await bundleRenderer(publicDir, {
       onProgress: (value) => progress.update('Bundling code', value),
-      webpackOverride: (config) => ({
-        ...config,
-        module: {
-          ...config.module,
-          rules: [
-            ...(config.module?.rules ?? []),
-            {test: /\.(ttf|otf|woff2?)$/, type: 'asset/resource'},
-          ],
-        },
-      }),
     });
+    cleanup = bundled.cleanup;
 
     const composition = await selectComposition({
-      serveUrl,
+      serveUrl: bundled.serveUrl,
       id: 'Diary',
       inputProps,
       logLevel: 'error',
@@ -57,7 +35,7 @@ const main = async () => {
     const totalFrames = composition.durationInFrames;
 
     await renderMedia({
-      serveUrl,
+      serveUrl: bundled.serveUrl,
       composition,
       inputProps,
       codec: 'h264',
@@ -87,7 +65,7 @@ const main = async () => {
     progress.update('Encoding video', 1);
   } finally {
     progress.finish();
-    if (bundleDir) fs.rmSync(bundleDir, {recursive: true, force: true});
+    cleanup();
   }
 };
 

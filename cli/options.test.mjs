@@ -41,10 +41,11 @@ test('a leading `help` token (or -h / --help) routes to the help command', () =>
   assert.deepEqual(parseArgs(['--help']), {command: 'help'});
 });
 
-test('a path-qualified folder named doctor/lyrics/help is the escape hatch, not a verb', () => {
+test('a path-qualified folder named doctor/lyrics/still/help is the escape hatch, not a verb', () => {
   assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null});
   assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null});
   assert.deepEqual(parseArgs(['./help']), {command: 'render', folder: './help', output: null});
+  assert.deepEqual(parseArgs(['./still']), {command: 'render', folder: './still', output: null});
   assert.deepEqual(parseArgs(['/abs/path/lyrics']), {
     command: 'render',
     folder: '/abs/path/lyrics',
@@ -52,8 +53,39 @@ test('a path-qualified folder named doctor/lyrics/help is the escape hatch, not 
   });
 });
 
-test('missing folder in the default command reports usage listing all three forms', () => {
+test('a leading `still` token routes to the still command with defaults', () => {
+  assert.deepEqual(parseArgs(['still', 'photo.jpg']), {
+    command: 'still',
+    target: 'photo.jpg',
+    output: null,
+    exif: false,
+    scale: 2,
+  });
+});
+
+test('still accepts -o, --exif, and --scale', () => {
+  assert.deepEqual(parseArgs(['still', './photos', '-o', 'out', '--exif', '--scale', '3']), {
+    command: 'still',
+    target: './photos',
+    output: 'out',
+    exif: true,
+    scale: 3,
+  });
+});
+
+test('still --scale must be integer 1–4', () => {
+  assert.throws(() => parseArgs(['still', 'a.jpg', '--scale', '5']), CliError);
+  assert.throws(() => parseArgs(['still', 'a.jpg', '--scale', '1.5']), CliError);
+  assert.throws(() => parseArgs(['still', 'a.jpg', '--scale']), CliError);
+});
+
+test('still without a target is a usage error', () => {
+  assert.throws(() => parseArgs(['still']), /tsuzuri still/);
+});
+
+test('missing folder in the default command reports usage listing all forms', () => {
   assert.throws(() => parseArgs([]), /tsuzuri <folder> \[-o out\.mp4\]/);
   assert.throws(() => parseArgs([]), /tsuzuri doctor/);
   assert.throws(() => parseArgs([]), /tsuzuri lyrics <folder>/);
+  assert.throws(() => parseArgs([]), /tsuzuri still/);
 });

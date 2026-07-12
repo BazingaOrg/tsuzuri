@@ -2,12 +2,14 @@ export class CliError extends Error {}
 
 export const USAGE =
   '用法:\n' +
-  '  tsuzuri <folder> [-o out.mp4]   渲染相册视频(默认命令)\n' +
-  '  tsuzuri doctor                  检查依赖是否就绪\n' +
-  '  tsuzuri lyrics <folder>         只识别歌词并预览(不渲染)\n' +
-  '  tsuzuri help                    显示本说明(同 -h / --help)\n' +
+  '  tsuzuri <folder> [-o out.mp4]              渲染相册视频(默认命令)\n' +
+  '  tsuzuri still <photo|folder> [选项]         按视频同款视觉导出静态图\n' +
+  '  tsuzuri doctor                             检查依赖是否就绪\n' +
+  '  tsuzuri lyrics <folder>                    只识别歌词并预览(不渲染)\n' +
+  '  tsuzuri help                               显示本说明(同 -h / --help)\n' +
+  'still 选项: -o <out.png|dir>  --exif  --scale <1-4>(默认 2)\n' +
   '目录约定:文件夹内放照片(jpg/png/webp)+ 唯一的音频文件(mp3 等)\n' +
-  '若文件夹名恰好叫 doctor / lyrics / help,用路径前缀转义,如 tsuzuri ./lyrics';
+  '若文件夹名恰好叫 doctor / lyrics / still / help,用路径前缀转义,如 tsuzuri ./still';
 
 const parseRenderArgs = (argv) => {
   const args = {command: 'render', folder: null, output: null};
@@ -54,8 +56,48 @@ const parseLyricsArgs = (rest) => {
   return args;
 };
 
+const parseStillArgs = (rest) => {
+  const args = {
+    command: 'still',
+    target: null,
+    output: null,
+    exif: false,
+    scale: 2,
+  };
+  for (let i = 0; i < rest.length; i++) {
+    const token = rest[i];
+    if (token === '-o' || token === '--output') {
+      if (i + 1 >= rest.length || rest[i + 1].startsWith('-')) {
+        throw new CliError(`${token} 需要输出路径(文件 .png 或目录)`);
+      }
+      args.output = rest[++i];
+    } else if (token === '--exif') {
+      args.exif = true;
+    } else if (token === '--scale') {
+      if (i + 1 >= rest.length || rest[i + 1].startsWith('-')) {
+        throw new CliError('--scale 需要 1–4 的整数');
+      }
+      const raw = rest[++i];
+      if (!/^[1-4]$/.test(raw)) {
+        throw new CliError(`--scale 必须是 1–4 的整数,收到 ${raw}`);
+      }
+      args.scale = Number(raw);
+    } else if (token.startsWith('-')) {
+      throw new CliError(`未知参数: ${token}\n用法: tsuzuri still <photo|folder> [-o out] [--exif] [--scale N]`);
+    } else if (!args.target) {
+      args.target = token;
+    } else {
+      throw new CliError(`未知参数: ${token}\n用法: tsuzuri still <photo|folder> [-o out] [--exif] [--scale N]`);
+    }
+  }
+  if (!args.target) {
+    throw new CliError('用法: tsuzuri still <photo|folder> [-o out.png|dir] [--exif] [--scale 1-4]');
+  }
+  return args;
+};
+
 /**
- * A leading token exactly equal to `doctor`, `lyrics` or `help` is always the verb.
+ * A leading token exactly equal to `doctor`, `lyrics`, `still` or `help` is always the verb.
  * Any path-qualified token (`./lyrics`, `/abs/path`, ...) is not a bare verb
  * string, so it never matches here and falls through to the render command —
  * that's the escape hatch for a folder that happens to be named after a verb.
@@ -64,6 +106,7 @@ export const parseArgs = (argv) => {
   const [first, ...rest] = argv;
   if (first === 'doctor') return parseDoctorArgs(rest);
   if (first === 'lyrics') return parseLyricsArgs(rest);
+  if (first === 'still') return parseStillArgs(rest);
   if (first === 'help' || first === '-h' || first === '--help') return {command: 'help'};
   return parseRenderArgs(argv);
 };

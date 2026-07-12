@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  formatAperture,
+  formatCamera,
+  formatDatetime,
+  formatExposure,
+  formatFocal,
+  formatIso,
+  formatParams,
+} from './exif.mjs';
+
+test('formatCamera dedupes Make prefix in Model', () => {
+  assert.equal(formatCamera('Sony', 'Sony α7 IV'), 'Sony α7 IV');
+  assert.equal(formatCamera('Canon', 'EOS R5'), 'Canon EOS R5');
+  assert.equal(formatCamera('Sony', null), 'Sony');
+  assert.equal(formatCamera(null, 'α7 IV'), 'α7 IV');
+  assert.equal(formatCamera(null, null), undefined);
+});
+
+test('formatExposure prefers fraction for sub-second shutter', () => {
+  assert.equal(formatExposure(1 / 250), '1/250s');
+  assert.equal(formatExposure(1 / 60), '1/60s');
+  assert.equal(formatExposure(2), '2s');
+  assert.equal(formatExposure(0.5), '1/2s');
+  assert.equal(formatExposure(null), null);
+});
+
+test('formatFocal / aperture / iso', () => {
+  assert.equal(formatFocal(35.2), '35mm');
+  assert.equal(formatAperture(1.8), 'f/1.8');
+  assert.equal(formatAperture(2), 'f/2');
+  assert.equal(formatIso(100), 'ISO 100');
+});
+
+test('formatParams joins present fields with middot', () => {
+  assert.equal(
+    formatParams({focalLength: 35, fNumber: 1.8, exposureTime: 1 / 250, iso: 100}),
+    '35mm · f/1.8 · 1/250s · ISO 100',
+  );
+  assert.equal(formatParams({focalLength: 50, fNumber: null, exposureTime: null, iso: 200}), '50mm · ISO 200');
+  assert.equal(formatParams({}), undefined);
+});
+
+test('formatDatetime normalizes EXIF string and Date', () => {
+  assert.equal(formatDatetime('2026:05:21 18:42:33'), '2026.05.21 18:42');
+  assert.equal(formatDatetime('2026-05-21T18:42:00'), '2026.05.21 18:42');
+  const d = new Date(2026, 4, 21, 18, 42, 0);
+  assert.equal(formatDatetime(d), '2026.05.21 18:42');
+  assert.equal(formatDatetime(null), undefined);
+});

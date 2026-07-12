@@ -16,6 +16,7 @@ import {CliError, USAGE, parseArgs} from './options.mjs';
 import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
 import {runDoctor} from './doctor.mjs';
 import {runLyrics} from './lyrics.mjs';
+import {runStill} from './still.mjs';
 import {term} from './term.mjs';
 
 const REPO = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -80,7 +81,7 @@ const normalizeLoudness = (file) => {
   term.detail(`${measured.toFixed(1)} → ${TARGET_LUFS} LUFS(真峰值 ≤ ${TARGET_TP}dB)`);
 };
 
-const main = () => {
+const main = async () => {
   const parsed = parseArgs(process.argv.slice(2));
   if (parsed.command === 'help') {
     console.log(USAGE);
@@ -88,6 +89,7 @@ const main = () => {
   }
   if (parsed.command === 'doctor') return runDoctor();
   if (parsed.command === 'lyrics') return runLyrics(parsed.folder);
+  if (parsed.command === 'still') return runStill(parsed);
 
   const {folder: folderArg, output} = parsed;
   const folder = path.resolve(folderArg);
@@ -185,7 +187,7 @@ const main = () => {
 const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   try {
-    process.exitCode = main();
+    process.exitCode = await main();
   } catch (error) {
     term.error(`tsuzuri: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
