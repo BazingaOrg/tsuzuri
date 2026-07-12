@@ -1,6 +1,6 @@
 # 执行方案:报错文案人性化 + still 命名/覆盖语义 + still 签名与 EXIF 展示优化
 
-> 状态:方案草案,未开工。承接 branding-and-still-export-plan.md 的实现,
+> 状态:已实施(2026-07-12)。承接 branding-and-still-export-plan.md 的实现,
 > 含该实现 code review 的待修项。不含代码,只定方案与步骤。
 
 ## 零、Review 待修项(来自本轮 code review)
@@ -14,12 +14,12 @@
 | R3 | `cli/still.mjs` 输出命名 | ①普通版与 `--exif` 版同名互相覆盖;②同名不同扩展名的源图(`a.jpg` + `a.webp`)在批量导出时静默互相覆盖 | 见"第二部分"命名方案 |
 | R4 | `cli/still.mjs` `-o out.jpg` | 单文件模式传非 .png 扩展名被静默改写成 `out.jpg.png` | 直接报错:"still 只导出 PNG,-o 请以 .png 结尾或传目录" |
 | R5 | `cli/still.mjs` `loadStillCanvasConfig` | 手写 flat-TOML 解析与 `plan.py` 的 tomllib 是两套解析器,`[table]`/多行字符串会静默读错(当前 config.md 只有平铺键,风险休眠) | 加镜像注释互指;config.md 明示"配置须平铺";v2 再考虑统一 |
-| R6 | `cli/still.mjs` 批量循环 | 每张都调一次 `selectComposition`,但全部 job 的画布元数据相同 | 提到循环外调一次(批量提速) |
+| R6 | `cli/still.mjs` 批量循环 | 每张都调一次 `selectComposition`,但全部 job 的画布元数据相同 | 提到循环外调一次;每次 render 必须用当前 `inputProps` 更新 `composition.props`,否则首次的 `exif:null` 会覆盖动态 EXIF |
 | R7 | `cli/still.mjs` | 进度条活跃期间用 `term.detail` 打印输出路径,可能与进度行交错 | 改用 `progress.println`(render.mjs 已有先例) |
 
 Review 通过项(不动):hooks 顺序安全;老 timeline 无 `branding` 字段的向后
 兼容;`intro=false` 的 plan/渲染两端联动与测试;`FramedPhoto` 抽取;
-exif 格式化函数与测试;三套验证(cli 39 test / typecheck / analyzer 75 test)全绿。
+exif 格式化函数与测试;最终验证(cli 46 test / typecheck / analyzer 75 test)全绿。
 
 ---
 
@@ -121,13 +121,13 @@ EXIF 开了都不会刷新,同一类 bug。
 
 - **默认永远覆盖**——still 是显式动作,"我要现在这份视觉的结果",确定性
   高于省时间;单张秒级,成本可接受。
-- **变体分离命名**,让"普通版"和"EXIF 版"根本不竞争同一个文件:
-  - 无 exif:`IMG_001.png`
-  - 带 exif:`IMG_001.exif.png`
-  - (将来带签名可归入同名不加后缀——签名属于"这份导出的装饰",不是另一
-    个变体;见第三部分)
-- **同名冲突消歧**:resolveJobs 后按 outPath 分组,冲突的 job 自动改为带原
-  扩展名的 `a.webp.png` 并 `term.warn` 一行;不报错中断(批量导出体验优先)。
+- **变体分离命名**,扩展名始终只有 `.png`,四种结果可在同一目录共存:
+  - 普通:`IMG_001.png`
+  - EXIF:`IMG_001-exif.png`
+  - 签名:`IMG_001-sign.png`
+  - EXIF + 签名:`IMG_001-exif-sign.png`
+- **同名冲突消歧**:resolveJobs 后按 outPath 分组,冲突的 job 自动把原扩展名
+  并入 basename,如 `a-jpg.png` / `a-webp.png`,并 `term.warn` 一行;不报错中断。
 - **`--skip-existing` 显式选项**(批量续跑场景):明示跳过并输出
   `└ 跳过 N 张已存在(--skip-existing)`;默认关。陈旧风险由"显式打开 +
   明示计数"兜住——用户主动要的跳过,和静默缓存不是一回事。
@@ -139,8 +139,8 @@ EXIF 开了都不会刷新,同一类 bug。
    (jpg/webp 同名、exif 与普通并存、`-o out.jpg` 报错)。
 7. **`--skip-existing`**:options.mjs 解析 + still.mjs 跳过逻辑 + 计数输出;
    补测试。
-8. **顺手修 R6/R7**:`selectComposition` 提到循环外;路径打印改
-   `progress.println`。
+8. **顺手修 R6/R7**:`selectComposition` 提到循环外,render 时以当前 job 的
+   `inputProps` 覆盖 `composition.props`;路径打印改 `progress.println`。
 
 ---
 
@@ -166,7 +166,7 @@ alias 里带上即可,v2 若呼声高再考虑 toml 键)。
 
 推荐参数(1080p 基准,进 `theme.ts` STILL 常量,Studio 里微调):photo_scale
 0.8 时下带高 108px,签名字形高取 **~56px**、垂直居中于下带;颜色用 INTRO
-的墨色但透明度降到 **~0.5**(落款应比作品轻)。注意竖图时下带不变(照片按
+的墨色 `#37332D`,实测后透明度定为 **0.65**(清晰但仍低于正文层级)。注意竖图时下带不变(照片按
 高度顶满),横图很宽时照片按宽度限制、下带会变高——签名仍锚定"照片下缘
 到画布底"的实际间隙居中,而不是固定坐标。
 
@@ -210,11 +210,11 @@ ISO 200
 
 - **a. camera / lens / params 至少一项存在** → 正常出展签,缺行省略
   (现状已如此)。
-- **b. 只剩 datetime** → **不出侧面板**,按无 EXIF 布局导出,并 warn:
-  `└ IMG_x.jpg: EXIF 只有时间字段,不足以出展签,已按无信息布局导出`。
+- **b. 只剩 datetime** → **跳过 EXIF 变体导出**,并 warn:
+  `└ IMG_x.jpg: EXIF 信息不足,已跳过导出`。EXIF 命令不生成名不副实的普通布局文件。
   孤零零一行时间的面板视觉是破的;且转存图的时间常是"保存时间"而非
   拍摄时间,展示反而误导。
-- **c. 全空** → 现状(warn + 回退)已正确,文案统一成 b 的句式。
+- **c. 全空** → 同 b,提示并跳过。
 - **明确不做**:不用文件 mtime 兜底"拍摄时间"——微信保存时间没有意义,
   宁缺毋滥。
 
@@ -250,8 +250,8 @@ ISO 200
 - 报错文案手工触发矩阵:临时改 PATH 去掉 uv / ffmpeg 各跑一次;
   `tsuzuri photo.jpg`;`tsuzuri still x.txt`;`-o out.jpg`;删 beats.json 后
   直接跑 plan。
-- still 语义:同一张图 ①普通 ②--exif ③再普通,确认三次后 `IMG.png` 与
-  `IMG.exif.png` 并存且内容对应;`a.jpg`+`a.webp` 批量冲突消歧 warn;
+- still 语义:同一张图四种组合导出后 `IMG.png` / `IMG-exif.png` /
+  `IMG-sign.png` / `IMG-exif-sign.png` 并存且内容对应;`a.jpg`+`a.webp` 批量冲突消歧 warn;
   `--skip-existing` 计数正确。
 - 视觉:Studio 目检四种组合(±exif × ±sign)+ 竖图/横图/全景各一张;
   微信转存图(datetime-only)走 b 分支。

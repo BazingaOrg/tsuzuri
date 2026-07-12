@@ -44,7 +44,7 @@ Drop a `tsuzuri.toml` in the folder to override defaults (resolution / fps / tra
 
 ## How it works
 
-![tsuzuri pipeline](docs/assets/architecture.svg)
+![tsuzuri dual pipeline: video and still outputs share one local visual system](docs/assets/architecture.png)
 
 Analyze / Plan / Render are three independent stages that only talk through JSON files under `metadata/`. `timeline.json` is the hand-editable contract (schema: [docs/specs/timeline-schema.md](docs/specs/timeline-schema.md)); rerunning with unchanged material skips analysis and renders your edited timeline directly.
 
@@ -74,6 +74,8 @@ node cli/tsuzuri.mjs ./osaka-trip               # render video
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # custom output path
 node cli/tsuzuri.mjs still ./photo.jpg          # export a still PNG (same look as the video, default 2× supersample)
 node cli/tsuzuri.mjs still ./photos --exif      # batch + EXIF caption panel
+node cli/tsuzuri.mjs still ./photos --sign      # add the same signature used by the video intro
+node cli/tsuzuri.mjs still ./photos --skip-existing # explicitly resume a batch
 node cli/tsuzuri.mjs doctor                     # dependency preflight with fix hints
 node cli/tsuzuri.mjs lyrics ./osaka-trip        # preview lyric recognition before rendering
 node cli/tsuzuri.mjs help                       # usage (same as -h / --help)
@@ -81,7 +83,13 @@ node cli/tsuzuri.mjs help                       # usage (same as -h / --help)
 
 `lyrics` lists every line with timestamps and confidence; lines below the render threshold (0.6) are flagged — check recognition quality before spending minutes on a render.
 
-`still` is a pure Node pipeline (no audio analysis). It writes lossless PNG; default `--scale 2` (3840×2160 supersample). Optional `--exif` adds camera / lens / exposure / datetime (never GPS).
+`still` is a pure Node pipeline (no audio analysis). It writes lossless PNG; default `--scale 2` (3840×2160 supersample). Its four variants are named `IMG.png` / `IMG-exif.png` / `IMG-sign.png` / `IMG-exif-sign.png`, so they can coexist in one directory. Photos without enough EXIF are reported and skipped for EXIF variants. Existing files are overwritten by default; `--skip-existing` is an explicit batch-resume mode.
+
+### Still cases
+
+| No EXIF · signature below photo | EXIF · signature inside caption panel |
+| --- | --- |
+| ![Without EXIF, the signature sits below the photo](docs/assets/still-sign-case.png) | ![With EXIF, the signature sits at the bottom of the caption panel](docs/assets/still-exif-sign-case.png) |
 
 ## 100% local
 
@@ -98,6 +106,8 @@ No cloud, no API keys. The Whisper backend matches your hardware automatically (
 **Weak vocals, bad recognition?** `cd analyzer && uv sync --extra separation` installs demucs; on low confidence the analyzer separates vocals and retries once automatically.
 
 **Rendering is slow, fans are loud?** Expected: frame-by-frame 60fps rendering plus H.264 encoding is CPU-bound. If 30fps is acceptable, set `fps = 30` in `tsuzuri.toml` — roughly halves the time.
+
+**Need the full stack trace?** Rerun with `TSUZURI_DEBUG=1`; for missing dependencies, start with `node cli/tsuzuri.mjs doctor`.
 
 **Different Whisper model?** Set `TSUZURI_WHISPER_MODEL=tiny|small|medium` (or a local model directory path) before running.
 

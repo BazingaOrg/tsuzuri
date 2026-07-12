@@ -16,8 +16,8 @@
 
 ## 近期落地(2026-07-12)
 
-- **片头/片尾个性化(配置驱动)**:`tsuzuri.toml` 新增 `outro_text` / `signature` / `intro` → `plan.py` 写入 `meta.branding` → 渲染器消费。谢幕语抽为 `Outro.tsx`;自定义签名 SVG 运行时 `getTotalLength()` 测长(delayRender),多 path 并行书写,默认路径仍用常量 2109.58 保证逐帧一致;`intro=false` 时 plan 不预留片头、渲染器不挂 Intro。
-- **`tsuzuri still`**:纯 Node + `renderStill` PNG,默认 `--scale 2`;可选 `--exif`(exifr 在 CLI 格式化四行)。`FramedPhoto` 从 Photo 抽出,与 Still composition 共用。方案见 [branding-and-still-export-plan.md](./branding-and-still-export-plan.md)。
+- **片头/片尾个性化(配置驱动)**:`tsuzuri.toml` 新增 `outro_text` / `signature` / `intro`;plan 只透传显式配置,展示默认值单一来源留在渲染器。自定义签名 SVG 运行时测长,cleanup 会释放 pending delayRender handle;`intro=false` 时 plan 不预留片头、渲染器不挂 Intro。
+- **`tsuzuri still`**:纯 Node + `renderStill` PNG,默认 `--scale 2`;支持 `--exif` 四行展签、`--sign` 落款和显式 `--skip-existing`。四种变体以 `-exif` / `-sign` 文件名段分离,扩展名始终为 `.png`;批量同 stem 自动把源扩展名并入 basename 消歧。方案见 [still-polish-and-error-ux-plan.md](./still-polish-and-error-ux-plan.md)。
 
 ## 关键决策(计划文档之外新增)
 
@@ -40,7 +40,7 @@
 - Windows:代码层面兼容(faster-whisper CPU/CUDA 路径、npx 坑已修 9e09165),未真机实测;最可能的坑:CJK/空格路径、demucs 的 torch 安装。
 - M5 剩余:快闪/裁剪阈值用真实素材调优;examples 目前只有生成的 fixture,可补一组真实示例照片 + 无版权音乐。
 - Whisper 模型可用 `TSUZURI_WHISPER_MODEL=tiny|small|medium` 临时覆盖(调试用)。
-- Review 遗留(advisory,未修):EXIF 排序是全有全无策略;信息条(INFO_BAR)常量已定义但渲染未实现(默认关,M6);HF 连通性探测用 urllib,SOCKS-only 环境会误切镜像(镜像可用,无害)。
+- Review 遗留(advisory,未修):EXIF 排序是全有全无策略;信息条(INFO_BAR)常量已定义但视频渲染未实现(默认关,M6);HF 连通性探测用 urllib,SOCKS-only 环境会误切镜像(镜像可用,无害)。
 - beat_alloc 约束优先级:所有间隔约束 > 切换点数量,塞不下时丢弃尾部照片(2026-07-10 review 修复了回退分支违反 min_gap 的 bug)。
 - 歌词长段按词级时间戳拆行(上限 30 全角等效),断点优先乐句边界:词间停顿 ≥0.3s / 下一词大写开头(排除恒大写 "I")/ 标点收尾;渲染端另有超宽缩字号兜底。
 - 成片响度归一:CLI 渲染后用 ffmpeg loudnorm 两遍法(linear=true 纯增益)统一到 -14 LUFS / TP -1.5dB,源已达标(±1 LU 且 TP ≤ -1)则跳过;视频流 copy 不重编码。
@@ -54,9 +54,9 @@
 - 本机环境有 SOCKS 代理,已加 `httpx[socks]` 依赖(顺带惠及代理用户)。
 - 视觉规格第五次修订(2026-07-11):照片阴影从暖棕改为中性冷黑三层(`rgba(10,12,16,…)`,α 0.32/0.28/0.18,垂直入光),白底上不再偏黄;描边同步中性化。渲染质量:中间帧 `jpegQuality: 100`、输出 `crf: 16`(此前走 Remotion 默认 80/18);音频仍为 AAC 320k 默认。
 - CLI 子命令(2026-07-11):新增 `tsuzuri doctor`(秒级预检 node/uv/ffmpeg/渲染器依赖,analyzer venv 仅提示;不联网、不触发 uv sync)与 `tsuzuri lyrics <folder>`(analyzer 新增 `--lyrics-only`,跳过节拍分析仅识别歌词,LRC 分支用 `librosa.get_duration` 取时长;终端预览含置信度,<0.6 标记为不会渲染)。路由规则:首 token 恰为 `doctor`/`lyrics` 即子命令,路径前缀(`./lyrics`)转义;日常命令 `tsuzuri <folder>` 行为不变。CLI 测试 15→27,analyzer 39→41。
-- README 重写(2026-07-11):标语纳入歌词;去除全文中英双份句(标题双语 + 正文中文);新增 kami 风格架构图 `docs/assets/architecture.svg` 与 Showcase 截图占位(待用户提供);LRC/目录约定折叠进 `<details>`;辅助命令单列一节。
+- README 重写(2026-07-11,架构图于 2026-07-12 更新):标语纳入歌词;去除全文中英双份句(标题双语 + 正文中文);Kami 风格 PNG 架构图现覆盖视频与 still 双管线,README 预留 EXIF / EXIF+签名案例位;LRC/目录约定折叠进 `<details>`;辅助命令单列一节。
 - 片头片尾(2026-07-11,替代右下角常驻签名):片头 = 白画布居中"写"签名——虚线偏移描字(stroke-dasharray = 路径总长 2109.58,dashoffset 逐帧从总长插值到 0,笔迹沿真实轮廓画出),1.4s 描字 + 0.35s 上墨(fillOpacity 淡入)+ 0.4s 停留 + 0.5s 卡片淡出;第一张照片可见时长不足自动跳过。⚠ 两个实测踩坑:CSS animation 在 Remotion 不可用(须 useCurrentFrame 逐帧驱动);Chrome/WebKit 对多子路径 <path> 设置 pathLength 归一化会**整体禁用虚线**,必须用真实路径长度(getTotalLength 在渲染用 chrome-headless-shell 实测,硬编码为常量)。片尾 = "Thanks for watching :)" 沿用字幕题签样式(Noto Serif 36px/500/0.12em)随白场过半淡入;Sacramento 字体随之移除(git 历史可找回)。ANIMATION 拆分:audioFadeDuration 1.5s / whiteFadeDuration 2.5s(白场更长给谢幕语留时间,音频淡出不变)。Signature.tsx 改纯展示组件(viewBox 内聚,定位配色由使用方给)。
-- 个人签名落款(2026-07-11):Sacramento 手写 SVG 转实心路径内联为 Signature.tsx(方案 A,渲染器内置),常驻右下角(1080p 基准高 56px、边距 48px、#8F8C85 80% 透明),层级在片尾白场之上——淡白后落款保留。SVG 原件字形 bbox 为 viewBox "2 2 320 129"(宽高比 2.5:1);注意 qlmanage 预览该文件会几何失真,勿以缩略图判断比例。
+- 个人签名落款(2026-07-11,后续方案已替代常驻右下角):Sacramento 手写 SVG 转实心路径内联为 Signature.tsx(方案 A,渲染器内置)。视频中作为片头书写;still 由 `--sign` 显式开启——无 EXIF 时位于照片下方留白中央,有 EXIF 时位于展签底部,使用 `#37332D` / 0.65 opacity。SVG 字形 bbox 为 viewBox "2 2 320 129"(宽高比 2.5:1)。
 - 开源与文档完善(2026-07-11):代码 MIT(字体 OFL 1.1 并行,fonts/OFL.txt 已在库);README 增安装指引(brew 一行,不套娃)、首跑预期(模型下载体积 + 渲染耗时)、平台声明(仅 macOS/Apple Silicon 实测)、FAQ 六条、License 节;新增 docs/config.md(tsuzuri.toml 全量参考)与 README.en.md;whisper_backend 在触发 HF 下载前打印模型体积预期。模型不入库:GitHub 100MB 上限 + models/ 约定目录已覆盖离线场景。CLAUDE.md/AGENTS.md 移出版本库。
 - 片头/片尾配时预留(2026-07-11):plan.py 新增常量镜像 INTRO_DURATION=2.65 / WHITE_FADE_DURATION=2.5 / MIN_PHOTO_VISIBLE=0.8(与 renderer/src/theme.ts、Intro.tsx 双向注释互指,任一侧改动需同步)。非快闪且 duration>=5.95s 时预留片头:beat_alloc.allocate_switch_points 新增 head_offset(理想网格整体右移,0 时行为逐位不变,56 条既有测试回归确认)把首张照片的可见时长拉平到与其余照片相当,并把 not_before 抬高到 3.45s 兜底(该值经既有 usable 过滤 + fallback 逻辑天然保证下界,无需额外硬编码分支)。任何时长都尝试给末张照片预留 not_after(片尾白场前 ≥0.8s 不透明可见),取 max(网格自身理想末位, 该下界)——绝不比均分网格更早,与 min_gap 冲突时 min_gap 胜出(不为保尾丢照片)。不变式(plan 预留 ⟺ 渲染端 showIntro 判定为真)已用 test_plan_head_tail_reserve.py 的独立 Python 复刻函数覆盖。examples/fixture/timeline.json(Studio 预览用静态文件)未随之重新生成,如需体现新配时需手动重跑。
   - **审查发现并修复(Codex 定向复核 + deep-reasoner 独立复核)**:n==2 时头尾两个约束落在同一个(唯一的)切换点上,原用通用门槛 5.95s 会在 duration ∈ [5.95, 6.75) 的窄窗口内(该点必须同时 ≥3.45 且 ≤duration−3.3,但窗口宽度不足)因找不到候选而被 `t > duration - min_gap: break` 整体丢弃、误删第二张照片(已用脚本复现:D=5.95,n=2,原逻辑丢照片;修复后保留)。修复:n==2 时预留门槛抬高到 SHOW_INTRO_MIN_T+MIN_PHOTO_VISIBLE=6.75s(n>=3 时头尾分属不同切换点,门槛不变)。同时改掉两个空验证测试:`test_avg_boundary_at_two_seconds_is_non_flash` 原是重言式(`X==X` 恒真);`test_last_photo_has_opaque_tail_before_white_fade` 原场景理想末位天然早于白场起点,not_after 从未真正生效——现用手工构造的候选(唯一候选 11.0 距理想位 8.325 在吸附范围内但会把尾部压到 3.0s<3.3s 目标)证明该候选确实被排除。analyzer 测试 56→59。

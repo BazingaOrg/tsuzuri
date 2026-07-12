@@ -2,7 +2,7 @@
 
 在素材文件夹根目录放一份 `tsuzuri.toml` 即可覆盖默认值。该文件计入 input hash:改动配置后重跑会自动重新分析和规划,无需手动清缓存。
 
-未知配置键会在终端警告后忽略;`motion` / `kenburns_from` / `kenburns_to` 已弃用(照片保持静止展示)。
+配置必须使用顶层平铺的 `key = value` 形式,不要使用 `[table]` 或多行字符串(still 的轻量读取器与 analyzer 的 tomllib 共同遵守此约束)。未知配置键会在终端警告后忽略;`motion` / `kenburns_from` / `kenburns_to` 已弃用(照片保持静止展示)。
 
 ## 画布与输出
 
@@ -36,13 +36,15 @@
 
 ## 片头 / 片尾(branding)
 
-写入 `timeline.json` 的 `meta.branding`;不配置时与内置默认逐帧一致。
+仅显式配置的键写入 `timeline.json` 的 `meta.branding`;不配置时由渲染器内置默认值负责,避免两份默认文案漂移。
 
 | 键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `outro_text` | `"Thanks for watching :)"` | 片尾谢幕语;设为 `""` 隐藏文案(片尾白场时长不变) |
 | `signature` | *(内置)* | 素材文件夹内的签名 SVG 相对路径;缺省用内置 Sacramento 手写签名 |
 | `intro` | `true` | 片头总开关;`false` 时 plan 不预留片头时长,渲染器不挂载片头 |
+
+`signature` 同时供视频片头与 `tsuzuri still --sign` 使用:无 EXIF 时落款位于照片下方留白,有 EXIF 时位于展签面板底部。`--sign` 是 still 的显式开关,不写入 toml。
 
 ### 自定义签名 SVG 约束
 

@@ -1,5 +1,7 @@
 # tsuzuri(綴り)— 实现方案
 
+> 本文记录初始视频管线实施基线。已落地的 branding 与 still 双管线增量分别见 [branding-and-still-export-plan.md](./branding-and-still-export-plan.md) 和 [still-polish-and-error-ux-plan.md](./still-polish-and-error-ux-plan.md);当前对外用法以 README 为准。
+
 > **tsuzuri(綴り)** — Turn photos and a song into a beat-synced visual diary. Fully local: beat detection, smart cut planning, lyric transcription, and a clean white-canvas 16:9 render with gallery-style captions — one command, no editor.
 >
 > 把照片和一首歌缀成踩点影像日记:本地节拍分析、智能规划切换、歌词识别、画册式字幕,一条命令导出成片,无需剪辑软件。

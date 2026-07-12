@@ -46,7 +46,7 @@ node cli/tsuzuri.mjs ./osaka-trip
 
 ## How it works / 工作原理
 
-![tsuzuri pipeline](docs/assets/architecture.svg)
+![tsuzuri 双管线架构:视频与 still 共用本地视觉系统](docs/assets/architecture.png)
 
 Analyze / Plan / Render 三个阶段彼此独立,只通过 `metadata/` 下的 JSON 文件衔接;`timeline.json` 是可手改的契约(schema 见 [docs/specs/timeline-schema.md](docs/specs/timeline-schema.md)),素材未变时重跑会跳过分析、直接按改后的时间线渲染。
 
@@ -76,6 +76,8 @@ node cli/tsuzuri.mjs ./osaka-trip               # 渲染成片(日常命令)
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # 自定义输出路径
 node cli/tsuzuri.mjs still ./photo.jpg          # 按视频同款视觉导出 PNG(默认 2× 超采样)
 node cli/tsuzuri.mjs still ./photos --exif      # 批量 + EXIF 展签面板
+node cli/tsuzuri.mjs still ./photos --sign      # 加入 toml 同源签名落款
+node cli/tsuzuri.mjs still ./photos --skip-existing # 批量续跑,显式跳过已存在文件
 node cli/tsuzuri.mjs doctor                     # 预检依赖,失败项附修复命令
 node cli/tsuzuri.mjs lyrics ./osaka-trip        # 渲染前预览歌词识别结果
 node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
@@ -83,7 +85,13 @@ node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
 
 `lyrics` 会列出每行的时间戳与置信度,低于渲染阈值(0.6)的行会标出——先确认识别质量,再花时间渲染。
 
-`still` 是纯 Node 管道(不跑音频分析),输出无损 PNG;默认 `--scale 2`(3840×2160 超采样),可选 `--exif` 叠加相机/镜头/参数/时间(不含 GPS)。单张默认写到照片旁 `output/stills/`,文件夹则批量导出。
+`still` 是纯 Node 管道(不跑音频分析),输出无损 PNG;默认 `--scale 2`(3840×2160 超采样)。四种变体分别命名为 `IMG.png` / `IMG-exif.png` / `IMG-sign.png` / `IMG-exif-sign.png`,可在同一目录共存。没有足够 EXIF 的照片会提示并跳过 EXIF 变体。批量续跑可显式使用 `--skip-existing`;默认总是覆盖已有同变体文件。
+
+### Still cases / 静态作品案例
+
+| 无 EXIF · 照片下方落款 | EXIF · 展签面板内落款 |
+| --- | --- |
+| ![无 EXIF 时签名位于照片下方留白](docs/assets/still-sign-case.png) | ![有 EXIF 时签名位于展签面板底部](docs/assets/still-exif-sign-case.png) |
 
 ## 100% local / 完全本地
 
@@ -100,6 +108,8 @@ node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
 **人声弱、识别很差?** `cd analyzer && uv sync --extra separation` 安装 demucs,低置信度时会自动人声分离后重识别一次。
 
 **渲染慢、风扇响?** 正常:60fps 逐帧渲染 + H.264 编码本就吃 CPU。接受 30fps 的话在 `tsuzuri.toml` 设 `fps = 30`,耗时近似减半。
+
+**需要完整错误栈排查?** 设置 `TSUZURI_DEBUG=1` 后重跑;依赖问题先运行 `node cli/tsuzuri.mjs doctor`。
 
 **想换 Whisper 模型?** 运行前设 `TSUZURI_WHISPER_MODEL=tiny|small|medium`(或本地模型目录路径)。
 
