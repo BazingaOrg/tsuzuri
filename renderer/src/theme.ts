@@ -100,14 +100,24 @@ export const STILL = {
     panelWidth: 0.24, // × 画布宽
     gap: 0.05, // × 画布宽
   },
+  signature: {
+    height: 56,
+    panelHeight: 44,
+    bottomInset: 26,
+    opacity: 0.65,
+    color: INTRO.color,
+  },
   typography: {
     // 参数行为视觉主角(字号同字幕 36);相机/镜头次之;时间最小用 INFO_BAR 灰
-    paramsFontSize: 36,
+    paramsFontSize: 30,
     cameraFontSize: 28,
     lensFontSize: 24,
     datetimeFontSize: 20,
     lineGap: 10, // 行间距(px,1080p)
     groupGap: 28, // 相机组与参数组、参数组与时间之间
+    paramsLineGap: 8,
+    dividerColor: '#E4E2DC',
+    dividerWidth: 0.5,
     fontFamily: `'Noto Serif', 'Noto Serif JP', 'Noto Serif SC', serif`,
     color: '#37332D',
     datetimeColor: '#B0AEA6', // INFO_BAR

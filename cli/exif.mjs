@@ -5,13 +5,17 @@
 
 import exifr from 'exifr';
 
-/** @typedef {{camera?: string, lens?: string, params?: string, datetime?: string}} FormattedExif */
+/** @typedef {{camera?: string, lens?: string, params?: string[], datetime?: string}} FormattedExif */
 
 const clean = (value) => {
   if (value == null) return null;
   const s = String(value).trim();
   return s.length > 0 ? s : null;
 };
+
+/** 相机、镜头或拍摄参数至少一项存在,才足以组成可信的 EXIF 展签。 */
+export const isDisplayableExif = (formatted) =>
+  Boolean(formatted?.camera || formatted?.lens || formatted?.params?.length);
 
 /** Make + Model,去掉 Model 里重复的 Make 前缀,简单大小写保留原样。 */
 export const formatCamera = (make, model) => {
@@ -73,7 +77,7 @@ export const formatParams = ({focalLength, fNumber, exposureTime, iso}) => {
     formatExposure(exposureTime),
     formatIso(iso),
   ].filter(Boolean);
-  return parts.length > 0 ? parts.join(' · ') : undefined;
+  return parts.length > 0 ? parts : undefined;
 };
 
 /** EXIF DateTimeOriginal: "2026:05:21 18:42:33" → "2026.05.21 18:42" */
@@ -138,7 +142,8 @@ export const extractFormattedExif = async (filePath) => {
     datetime: formatDatetime(raw.DateTimeOriginal ?? raw.CreateDate),
   };
 
-  if (!formatted.camera && !formatted.lens && !formatted.params && !formatted.datetime) {
+  // 时间单独存在时可能只是转存/保存时间,不足以组成可靠展签。
+  if (!isDisplayableExif(formatted)) {
     return null;
   }
   // 去掉 undefined 键,props 更干净

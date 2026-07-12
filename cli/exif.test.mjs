@@ -9,6 +9,7 @@ import {
   formatFocal,
   formatIso,
   formatParams,
+  isDisplayableExif,
 } from './exif.mjs';
 
 test('formatCamera dedupes Make prefix in Model', () => {
@@ -34,12 +35,12 @@ test('formatFocal / aperture / iso', () => {
   assert.equal(formatIso(100), 'ISO 100');
 });
 
-test('formatParams joins present fields with middot', () => {
-  assert.equal(
+test('formatParams returns one display line per present field', () => {
+  assert.deepEqual(
     formatParams({focalLength: 35, fNumber: 1.8, exposureTime: 1 / 250, iso: 100}),
-    '35mm · f/1.8 · 1/250s · ISO 100',
+    ['35mm', 'f/1.8', '1/250s', 'ISO 100'],
   );
-  assert.equal(formatParams({focalLength: 50, fNumber: null, exposureTime: null, iso: 200}), '50mm · ISO 200');
+  assert.deepEqual(formatParams({focalLength: 50, fNumber: null, exposureTime: null, iso: 200}), ['50mm', 'ISO 200']);
   assert.equal(formatParams({}), undefined);
 });
 
@@ -49,4 +50,10 @@ test('formatDatetime normalizes EXIF string and Date', () => {
   const d = new Date(2026, 4, 21, 18, 42, 0);
   assert.equal(formatDatetime(d), '2026.05.21 18:42');
   assert.equal(formatDatetime(null), undefined);
+});
+
+test('datetime alone is not enough for an EXIF caption', () => {
+  assert.equal(isDisplayableExif({datetime: '2026.05.21 18:42'}), false);
+  assert.equal(isDisplayableExif({camera: 'FUJIFILM X-T1'}), true);
+  assert.equal(isDisplayableExif({params: ['35mm']}), true);
 });

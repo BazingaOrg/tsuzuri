@@ -59,6 +59,8 @@ test('a leading `still` token routes to the still command with defaults', () => 
     target: 'photo.jpg',
     output: null,
     exif: false,
+    sign: false,
+    skipExisting: false,
     scale: 2,
   });
 });
@@ -69,8 +71,16 @@ test('still accepts -o, --exif, and --scale', () => {
     target: './photos',
     output: 'out',
     exif: true,
+    sign: false,
+    skipExisting: false,
     scale: 3,
   });
+});
+
+test('still accepts signature and explicit resume flags', () => {
+  const parsed = parseArgs(['still', './photos', '--sign', '--skip-existing']);
+  assert.equal(parsed.sign, true);
+  assert.equal(parsed.skipExisting, true);
 });
 
 test('still --scale must be integer 1–4', () => {

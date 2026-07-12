@@ -7,7 +7,7 @@ export const USAGE =
   '  tsuzuri doctor                             检查依赖是否就绪\n' +
   '  tsuzuri lyrics <folder>                    只识别歌词并预览(不渲染)\n' +
   '  tsuzuri help                               显示本说明(同 -h / --help)\n' +
-  'still 选项: -o <out.png|dir>  --exif  --scale <1-4>(默认 2)\n' +
+  'still 选项: -o <out.png|dir>  --exif  --sign  --skip-existing  --scale <1-4>(默认 2)\n' +
   '目录约定:文件夹内放照片(jpg/png/webp)+ 唯一的音频文件(mp3 等)\n' +
   '若文件夹名恰好叫 doctor / lyrics / still / help,用路径前缀转义,如 tsuzuri ./still';
 
@@ -62,6 +62,8 @@ const parseStillArgs = (rest) => {
     target: null,
     output: null,
     exif: false,
+    sign: false,
+    skipExisting: false,
     scale: 2,
   };
   for (let i = 0; i < rest.length; i++) {
@@ -73,6 +75,10 @@ const parseStillArgs = (rest) => {
       args.output = rest[++i];
     } else if (token === '--exif') {
       args.exif = true;
+    } else if (token === '--sign') {
+      args.sign = true;
+    } else if (token === '--skip-existing') {
+      args.skipExisting = true;
     } else if (token === '--scale') {
       if (i + 1 >= rest.length || rest[i + 1].startsWith('-')) {
         throw new CliError('--scale 需要 1–4 的整数');
@@ -83,11 +89,11 @@ const parseStillArgs = (rest) => {
       }
       args.scale = Number(raw);
     } else if (token.startsWith('-')) {
-      throw new CliError(`未知参数: ${token}\n用法: tsuzuri still <photo|folder> [-o out] [--exif] [--scale N]`);
+      throw new CliError(`未知参数: ${token}\n用法: tsuzuri still <photo|folder> [-o out] [--exif] [--sign] [--skip-existing] [--scale N]`);
     } else if (!args.target) {
       args.target = token;
     } else {
-      throw new CliError(`未知参数: ${token}\n用法: tsuzuri still <photo|folder> [-o out] [--exif] [--scale N]`);
+      throw new CliError(`未知参数: ${token}\n用法: tsuzuri still <photo|folder> [-o out] [--exif] [--sign] [--skip-existing] [--scale N]`);
     }
   }
   if (!args.target) {

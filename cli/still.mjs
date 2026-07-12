@@ -20,10 +20,12 @@ const DEFAULT_CANVAS = {
   height: 1080,
   background: '#FFFFFF',
   photo_scale: 0.8,
+  signature: '',
 };
 
 /**
- * 极简 flat toml 读取(tsuzuri.toml 仅一层 key = value)。
+ * 极简 flat toml 读取(tsuzuri.toml 仅一层 key = value)。镜像约束见
+ * docs/config.md;analyzer/plan.py 使用 tomllib,这里不要扩展嵌套 TOML 语法。
  * 只取 still 需要的画布字段;解析失败时回退默认并警告。
  */
 export const loadStillCanvasConfig = (folder) => {
@@ -51,6 +53,8 @@ export const loadStillCanvasConfig = (folder) => {
       } else if (key === 'background') {
         const s = raw.replace(/^["']|["']$/g, '');
         if (s) cfg.background = s;
+      } else if (key === 'signature') {
+        cfg.signature = raw.replace(/^["']|["']$/g, '');
       }
     }
   } catch {
@@ -67,7 +71,8 @@ const listPhotosInFolder = (folder) => {
     .map((f) => path.join(folder, f));
 };
 
-const resolveJobs = (target, output) => {
+export const resolveJobs = (target, output, exif = false, sign = false) => {
+  const variantSuffix = exif && sign ? '-exif-sign' : exif ? '-exif' : sign ? '-sign' : '';
   const resolved = path.resolve(target);
   if (!fs.existsSync(resolved)) {
     throw new CliError(`找不到路径: ${resolved}`);
@@ -81,18 +86,19 @@ const resolveJobs = (target, output) => {
     }
     const publicDir = path.dirname(resolved);
     const base = path.basename(resolved, path.extname(resolved));
+    const filename = `${base}${variantSuffix}.png`;
     let outPath;
     if (output) {
       const outResolved = path.resolve(output);
       if (outResolved.endsWith(path.sep) || (fs.existsSync(outResolved) && fs.statSync(outResolved).isDirectory())) {
-        outPath = path.join(outResolved, `${base}.png`);
+        outPath = path.join(outResolved, filename);
       } else if (path.extname(outResolved).toLowerCase() === '.png' || path.extname(outResolved) === '') {
         outPath = path.extname(outResolved) ? outResolved : `${outResolved}.png`;
       } else {
-        outPath = outResolved.endsWith('.png') ? outResolved : `${outResolved}.png`;
+        throw new CliError('still 只导出 PNG,-o 请以 .png 结尾或传目录');
       }
     } else {
-      outPath = path.join(publicDir, 'output', 'stills', `${base}.png`);
+      outPath = path.join(publicDir, 'output', 'stills', filename);
     }
     return {
       publicDir,
@@ -109,17 +115,28 @@ const resolveJobs = (target, output) => {
     const outDir = output
       ? path.resolve(output)
       : path.join(resolved, 'output', 'stills');
+    const jobs = photos.map((absPath) => {
+      const base = path.basename(absPath, path.extname(absPath));
+      return {src: path.basename(absPath), absPath, outPath: path.join(outDir, `${base}${variantSuffix}.png`)};
+    });
+    const groups = new Map();
+    for (const job of jobs) {
+      const key = job.outPath.toLowerCase();
+      groups.set(key, [...(groups.get(key) ?? []), job]);
+    }
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      for (const job of group) {
+        const sourceExt = path.extname(job.absPath).slice(1).toLowerCase();
+        const base = path.basename(job.absPath, path.extname(job.absPath));
+        job.outPath = path.join(outDir, `${base}-${sourceExt}${variantSuffix}.png`);
+      }
+      term.warn(`同名图片输出冲突,已保留源扩展名消歧: ${group.map((job) => path.basename(job.outPath)).join(', ')}`);
+    }
     return {
       publicDir: resolved,
       canvasFolder: resolved,
-      jobs: photos.map((absPath) => {
-        const base = path.basename(absPath, path.extname(absPath));
-        return {
-          src: path.basename(absPath),
-          absPath,
-          outPath: path.join(outDir, `${base}.png`),
-        };
-      }),
+      jobs,
     };
   }
 
@@ -127,7 +144,7 @@ const resolveJobs = (target, output) => {
 };
 
 /**
- * @param {{target: string, output: string | null, exif: boolean, scale: number}} opts
+ * @param {{target: string, output: string | null, exif: boolean, sign: boolean, skipExisting: boolean, scale: number}} opts
  */
 export const runStill = async (opts) => {
   const rendererPackage = path.join(RENDERER, 'node_modules', '@remotion', 'renderer');
@@ -135,13 +152,16 @@ export const runStill = async (opts) => {
     throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
   }
 
-  const {publicDir, canvasFolder, jobs} = resolveJobs(opts.target, opts.output);
+  const {publicDir, canvasFolder, jobs} = resolveJobs(opts.target, opts.output, opts.exif, opts.sign);
   const canvas = loadStillCanvasConfig(canvasFolder);
   const {renderStill, selectComposition} = loadRemotionRenderer();
   const progress = createPercentProgress();
   let cleanup = () => {};
+  let skipped = 0;
+  let skippedExif = 0;
+  let rendered = 0;
 
-  term.start(`导出 still(${jobs.length} 张, scale=${opts.scale}${opts.exif ? ', EXIF' : ''})`);
+  term.start(`导出 still(${jobs.length} 张, scale=${opts.scale}${opts.exif ? ', EXIF' : ''}${opts.sign ? ', 签名' : ''})`);
 
   try {
     const bundled = await bundleRenderer(publicDir, {
@@ -149,13 +169,32 @@ export const runStill = async (opts) => {
     });
     cleanup = bundled.cleanup;
 
+    const compositionInputProps = {
+      src: jobs[0].src,
+      background: canvas.background,
+      photoScale: canvas.photo_scale,
+      width: canvas.width,
+      height: canvas.height,
+      exif: null,
+      sign: opts.sign,
+      ...(opts.sign && canvas.signature ? {signatureSrc: canvas.signature} : {}),
+    };
+    const composition = await selectComposition({serveUrl: bundled.serveUrl, id: 'Still', inputProps: compositionInputProps, logLevel: 'error'});
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i];
+      if (opts.skipExisting && fs.existsSync(job.outPath)) {
+        skipped++;
+        continue;
+      }
       let exifProps;
       if (opts.exif) {
         exifProps = await extractFormattedExif(job.absPath);
         if (!exifProps) {
-          term.warn(`${path.basename(job.absPath)}: 无可用 EXIF,回退到无信息面板布局`);
+          skippedExif++;
+          progress.println(`└ ${path.basename(job.absPath)}: EXIF 信息不足,已跳过导出`);
+          const label = jobs.length === 1 ? 'Rendering still' : `Rendering still ${i + 1}/${jobs.length}`;
+          progress.update(label, (i + 1) / jobs.length);
+          continue;
         }
       }
 
@@ -165,21 +204,18 @@ export const runStill = async (opts) => {
         photoScale: canvas.photo_scale,
         width: canvas.width,
         height: canvas.height,
-        ...(exifProps ? {exif: exifProps} : {}),
+        sign: opts.sign,
+        ...(opts.sign && canvas.signature ? {signatureSrc: canvas.signature} : {}),
+        exif: exifProps ?? null,
       };
-
-      const composition = await selectComposition({
-        serveUrl: bundled.serveUrl,
-        id: 'Still',
-        inputProps,
-        logLevel: 'error',
-      });
 
       fs.mkdirSync(path.dirname(job.outPath), {recursive: true});
 
       await renderStill({
         serveUrl: bundled.serveUrl,
-        composition,
+        // selectComposition 只做一次以复用相同画布元数据;其 resolved props
+        // 必须按 job 更新,否则首次选择时的 exif:null 会覆盖动态 inputProps。
+        composition: {...composition, props: inputProps},
         inputProps,
         output: job.outPath,
         imageFormat: 'png',
@@ -198,15 +234,28 @@ export const runStill = async (opts) => {
           ? 'Rendering still'
           : `Rendering still ${i + 1}/${jobs.length}`;
       progress.update(label, (i + 1) / jobs.length);
-      term.detail(`→ ${job.outPath}`);
+      progress.println(`→ ${job.outPath}`);
+      rendered++;
     }
+    if (skipped > 0) progress.println(`└ 跳过 ${skipped} 张已存在(--skip-existing)`);
+    if (skippedExif > 0) progress.println(`└ 跳过 ${skippedExif} 张 EXIF 信息不足`);
     progress.update('Rendering still', 1);
   } finally {
     progress.finish();
     cleanup();
   }
 
-  term.success(`still 完成 → ${jobs.length === 1 ? jobs[0].outPath : path.dirname(jobs[0].outPath)}`);
+  if (rendered === 0) {
+    const reasons = [
+      ...(skipped > 0 ? [`${skipped} 张已存在`] : []),
+      ...(skippedExif > 0 ? [`${skippedExif} 张 EXIF 信息不足`] : []),
+    ];
+    term.success(`still 完成 → 未导出图片${reasons.length > 0 ? `(${reasons.join(',')})` : ''}`);
+  } else {
+    const destination = jobs.length === 1 ? jobs[0].outPath : path.dirname(jobs[0].outPath);
+    const skippedTotal = skipped + skippedExif;
+    term.success(`still 完成 → ${destination}${skippedTotal > 0 ? ` (导出 ${rendered} 张,跳过 ${skippedTotal} 张)` : ''}`);
+  }
   return 0;
 };
 
@@ -221,6 +270,7 @@ if (isMain) {
     process.exitCode = await runStill(parsed);
   } catch (error) {
     term.error(`tsuzuri still: ${error instanceof Error ? error.message : String(error)}`);
+    if ((process.env.TSUZURI_DEBUG === '1' || process.env.DEBUG === '1') && error instanceof Error && error.stack) term.detail(error.stack);
     process.exitCode = 1;
   }
 }
