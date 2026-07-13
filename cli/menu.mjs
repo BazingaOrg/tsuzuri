@@ -55,8 +55,9 @@ export const buildArgvFromChoices = ({choice, target, exif = false, sign = false
 
 const quoteArg = (arg) => (/[\s"'()&]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg);
 
-/** 可直接复制执行的等效命令(含空格的路径加引号)。 */
-export const formatEquivalentCommand = (argv) => ['tsuzuri', ...argv.map(quoteArg)].join(' ');
+/** 从仓库运行时可直接复制执行的等效命令(含空格的路径加引号)。 */
+export const formatEquivalentCommand = (argv) =>
+  ['node', 'cli/tsuzuri.mjs', ...argv.map(quoteArg)].join(' ');
 
 /**
  * 交互层:问答收集选择,返回 argv 数组。Windows 上 readline 接管 stdin 后
@@ -83,7 +84,7 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
 
     let item;
     for (;;) {
-      const choice = (await ask('选择 [1-4],Ctrl+C 退出: ')).trim();
+      const choice = (await ask('输入序号 [1-4] 后回车，Ctrl+C 退出: ')).trim();
       item = MENU_ITEMS.find((i) => i.key === choice);
       if (item) break;
     }
@@ -91,7 +92,9 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
     let target = null;
     if (item.pathPrompt) {
       for (;;) {
-        target = normalizeDroppedPath(await ask(`把${item.pathPrompt}拖进终端后回车: `));
+        target = normalizeDroppedPath(
+          await ask(`输入${item.pathPrompt}路径，或拖入后回车: `),
+        );
         if (target) break;
       }
     }
@@ -100,9 +103,9 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
     let sign = false;
     let dark = false;
     if (item.key === '2') {
-      exif = isYes(await ask('叠加 EXIF 展签?[y/N] '));
-      sign = isYes(await ask('加入签名落款?[y/N] '));
-      dark = isYes(await ask('黑色背景?[y/N] '));
+      exif = isYes(await ask('显示 EXIF 拍摄信息? [y/N，回车=否] '));
+      sign = isYes(await ask('加入签名落款? [y/N，回车=否] '));
+      dark = isYes(await ask('使用黑色背景（暗色展陈）? [y/N，回车=否] '));
     }
 
     const argv = buildArgvFromChoices({choice: item.key, target, exif, sign, dark});

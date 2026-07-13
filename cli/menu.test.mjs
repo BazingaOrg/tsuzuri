@@ -49,14 +49,17 @@ test('buildArgvFromChoices maps each menu entry onto CLI argv', () => {
 });
 
 test('formatEquivalentCommand quotes arguments containing spaces', () => {
-  assert.equal(formatEquivalentCommand(['still', './p', '--exif']), 'tsuzuri still ./p --exif');
+  assert.equal(
+    formatEquivalentCommand(['still', './p', '--exif']),
+    'node cli/tsuzuri.mjs still ./p --exif',
+  );
   assert.equal(
     formatEquivalentCommand(['still', './p', '--exif', '--sign', '--dark']),
-    'tsuzuri still ./p --exif --sign --dark',
+    'node cli/tsuzuri.mjs still ./p --exif --sign --dark',
   );
   assert.equal(
     formatEquivalentCommand(['still', '/Users/me/My Photos']),
-    'tsuzuri still "/Users/me/My Photos"',
+    'node cli/tsuzuri.mjs still "/Users/me/My Photos"',
   );
 });
 
