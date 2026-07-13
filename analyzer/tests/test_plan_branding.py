@@ -91,6 +91,11 @@ class TestBrandingPassthrough:
         timeline = build_timeline(tmp_path, make_beats(), [], cfg, None)
         assert timeline["meta"]["branding"]["signature"] == "signature.svg"
 
+    def test_background_must_be_a_string(self, tmp_path: Path):
+        (tmp_path / "tsuzuri.toml").write_text("background = 123\n", encoding="utf-8")
+        with pytest.raises(SystemExit):
+            load_config(tmp_path)
+
     def test_intro_false_does_not_reserve_head(self, tmp_path: Path):
         make_photos(tmp_path, 6)
         beats = make_beats(60.0)

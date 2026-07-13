@@ -107,6 +107,15 @@ def _validate_branding(cfg: dict, folder: Path) -> None:
         raise SystemExit(1)
 
 
+def _validate_background(cfg: dict) -> None:
+    background = cfg.get("background")
+    if not isinstance(background, str):
+        term.error(
+            f"tsuzuri.toml: background 必须是字符串,收到 {type(background).__name__}"
+        )
+        raise SystemExit(1)
+
+
 def load_config(folder: Path) -> dict:
     cfg = dict(DEFAULTS)
     explicit_branding: set[str] = set()
@@ -126,6 +135,7 @@ def load_config(folder: Path) -> dict:
         cfg.update({k: v for k, v in user.items() if k in DEFAULTS})
         explicit_branding = set(user) & {"outro_text", "signature", "intro"}
     cfg["_explicit_branding"] = explicit_branding
+    _validate_background(cfg)
     _validate_branding(cfg, folder)
     return cfg
 
