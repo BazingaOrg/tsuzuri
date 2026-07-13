@@ -16,6 +16,7 @@
 
 ## 近期落地(2026-07-12)
 
+- **暗色展陈色板(2026-07-13)**:`background` 的 WCAG 相对亮度自动选择 light/dark 前景;纯黑使用暖纸白文字、增强描边与单层低强度暖光晕,默认白底色值不变。still 新增 `--dark`,输出固定追加 `-dark`;交互菜单 still 分支增加黑底问答。视频仍只通过 toml 设置背景。方案见 [dark-background-plan.md](./dark-background-plan.md)。
 - **片头/片尾个性化(配置驱动)**:`tsuzuri.toml` 新增 `outro_text` / `signature` / `intro`;plan 只透传显式配置,展示默认值单一来源留在渲染器。自定义签名 SVG 运行时测长,cleanup 会释放 pending delayRender handle;`intro=false` 时 plan 不预留片头、渲染器不挂 Intro。
 - **`tsuzuri still`**:纯 Node + `renderStill` PNG,默认 `--scale 2`;支持 `--exif` 四行展签、`--sign` 落款和显式 `--skip-existing`。四种变体以 `-exif` / `-sign` 文件名段分离,扩展名始终为 `.png`;批量同 stem 自动把源扩展名并入 basename 消歧。方案见 [still-polish-and-error-ux-plan.md](./still-polish-and-error-ux-plan.md)。
 - **裸命令交互菜单**:`tsuzuri` 零参数 + TTY 时进入数字选择菜单(readline 标准库,零新依赖),菜单只组装 argv 交回 `parseArgs` 与命令行同路,执行前回显等效命令;非 TTY 裸跑仍报 USAGE。拖拽路径规整(macOS 反斜杠转义 / Windows 引号 / `~` 展开)与 Windows 兼容(rl 级 SIGINT、`-o` 结尾分隔符只在 win32 认 `\`)一并落地。方案见 [interactive-menu-plan.md](./interactive-menu-plan.md)。

@@ -11,7 +11,7 @@
 | `width` | `1920` | 输出宽度(px) |
 | `height` | `1080` | 输出高度(px) |
 | `fps` | `60` | 帧率;渲染耗时与其近似成正比,接受 30fps 可显著提速 |
-| `background` | `"#FFFFFF"` | 画布底色 |
+| `background` | `"#FFFFFF"` | 画布底色;请用 hex(`#RGB` / `#RRGGBB`),深色背景会自动切换暗厅文字与光影色板 |
 | `photo_scale` | `0.8` | 照片安全框占画布的比例(0–1) |
 
 ## 切换与节奏
@@ -58,6 +58,7 @@
 ```toml
 # osaka-trip/tsuzuri.toml
 fps = 30                 # 提速:渲染时间近似减半
+background = "#000000"   # 黑底会自动使用暖纸白文字、亮描边与低强度暖光晕
 photo_scale = 0.85
 transition = "crossfade"
 subtitles = false        # 纯音乐相册,不要字幕

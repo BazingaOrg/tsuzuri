@@ -78,6 +78,7 @@ node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # custom output path
 node cli/tsuzuri.mjs still ./photo.jpg          # export a still PNG (same look as the video, default 2× supersample)
 node cli/tsuzuri.mjs still ./photos --exif      # batch + EXIF caption panel
 node cli/tsuzuri.mjs still ./photos --sign      # add the same signature used by the video intro
+node cli/tsuzuri.mjs still ./photos --dark      # black gallery background (adds a -dark filename suffix)
 node cli/tsuzuri.mjs still ./photos --skip-existing # explicitly resume a batch
 node cli/tsuzuri.mjs doctor                     # dependency preflight with fix hints
 node cli/tsuzuri.mjs lyrics ./osaka-trip        # preview lyric recognition before rendering
@@ -109,7 +110,7 @@ Real terminal output of the render pipeline (instrumental material, recorded on 
 
 `lyrics` lists every line with timestamps and confidence; lines below the render threshold (0.6) are flagged — check recognition quality before spending minutes on a render.
 
-`still` is a pure Node pipeline (no audio analysis). It writes lossless PNG; default `--scale 2` (3840×2160 supersample). Its four variants are named `IMG.png` / `IMG-exif.png` / `IMG-sign.png` / `IMG-exif-sign.png`, so they can coexist in one directory. Photos without enough EXIF are reported and skipped for EXIF variants. Existing files are overwritten by default; `--skip-existing` is an explicit batch-resume mode.
+`still` is a pure Node pipeline (no audio analysis). It writes lossless PNG; default `--scale 2` (3840×2160 supersample). `--exif`, `--sign`, and `--dark` form a fixed-order filename suffix (for example, `IMG-exif-sign-dark.png`), so light and dark versions can coexist. `--dark` overrides the folder's TOML background; for a dark video, set `background = "#000000"` in `tsuzuri.toml`. Photos without enough EXIF are reported and skipped for EXIF variants. Existing files are overwritten by default; `--skip-existing` is an explicit batch-resume mode.
 
 ### Still cases
 

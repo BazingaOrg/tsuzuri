@@ -80,6 +80,7 @@ node cli/tsuzuri.mjs ./osaka-trip -o out.mp4    # 自定义输出路径
 node cli/tsuzuri.mjs still ./photo.jpg          # 按视频同款视觉导出 PNG(默认 2× 超采样)
 node cli/tsuzuri.mjs still ./photos --exif      # 批量 + EXIF 展签面板
 node cli/tsuzuri.mjs still ./photos --sign      # 加入 toml 同源签名落款
+node cli/tsuzuri.mjs still ./photos --dark      # 黑底暗厅色板(文件名追加 -dark)
 node cli/tsuzuri.mjs still ./photos --skip-existing # 批量续跑,显式跳过已存在文件
 node cli/tsuzuri.mjs doctor                     # 预检依赖,失败项附修复命令
 node cli/tsuzuri.mjs lyrics ./osaka-trip        # 渲染前预览歌词识别结果
@@ -111,7 +112,7 @@ node cli/tsuzuri.mjs help                       # 查看用法(同 -h / --help)
 
 `lyrics` 会列出每行的时间戳与置信度,低于渲染阈值(0.6)的行会标出——先确认识别质量,再花时间渲染。
 
-`still` 是纯 Node 管道(不跑音频分析),输出无损 PNG;默认 `--scale 2`(3840×2160 超采样)。四种变体分别命名为 `IMG.png` / `IMG-exif.png` / `IMG-sign.png` / `IMG-exif-sign.png`,可在同一目录共存。没有足够 EXIF 的照片会提示并跳过 EXIF 变体。批量续跑可显式使用 `--skip-existing`;默认总是覆盖已有同变体文件。
+`still` 是纯 Node 管道(不跑音频分析),输出无损 PNG;默认 `--scale 2`(3840×2160 超采样)。`--exif` / `--sign` / `--dark` 按固定顺序组成文件名后缀(如 `IMG-exif-sign-dark.png`),明暗版本可在同一目录共存。`--dark` 会覆盖素材夹 toml 的背景设置;视频暗底请在 `tsuzuri.toml` 写 `background = "#000000"`。没有足够 EXIF 的照片会提示并跳过 EXIF 变体。批量续跑可显式使用 `--skip-existing`;默认总是覆盖已有同变体文件。
 
 ### Still cases / 静态作品案例
 
