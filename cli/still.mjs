@@ -14,6 +14,16 @@ import {createPercentProgress} from './progress.mjs';
 import {term} from './term.mjs';
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+const ALL_VARIANT_SUFFIXES = [
+  '',
+  '-exif',
+  '-sign',
+  '-dark',
+  '-exif-sign',
+  '-exif-dark',
+  '-sign-dark',
+  '-exif-sign-dark',
+];
 
 const DEFAULT_CANVAS = {
   width: 1920,
@@ -71,7 +81,29 @@ const listPhotosInFolder = (folder) => {
     .map((f) => path.join(folder, f));
 };
 
-export const resolveJobs = (target, output, exif = false, sign = false, dark = false) => {
+const assertNoCrossVariantCollisions = (jobs, variantSuffix) => {
+  const producers = new Map();
+  for (const job of jobs) {
+    const currentStem = path.basename(job.outPath, '.png');
+    const outputStem = variantSuffix
+      ? currentStem.slice(0, -variantSuffix.length)
+      : currentStem;
+    for (const suffix of ALL_VARIANT_SUFFIXES) {
+      const outputName = `${outputStem}${suffix}.png`;
+      const key = outputName.toLowerCase();
+      const previous = producers.get(key);
+      if (previous && previous !== job.absPath) {
+        throw new CliError(
+          `图片文件名会导致 still 变体输出冲突: ${path.basename(previous)} / ${path.basename(job.absPath)} → ${outputName}\n` +
+          '└ 请重命名其中一张图片后重试',
+        );
+      }
+      producers.set(key, job.absPath);
+    }
+  }
+};
+
+export const resolveJobs = (target, output, {exif = false, sign = false, dark = false} = {}) => {
   const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}`;
   const resolved = path.resolve(target);
   if (!fs.existsSync(resolved)) {
@@ -137,6 +169,7 @@ export const resolveJobs = (target, output, exif = false, sign = false, dark = f
       }
       term.warn(`同名图片输出冲突,已保留源扩展名消歧: ${group.map((job) => path.basename(job.outPath)).join(', ')}`);
     }
+    assertNoCrossVariantCollisions(jobs, variantSuffix);
     return {
       publicDir: resolved,
       canvasFolder: resolved,
@@ -156,7 +189,7 @@ export const runStill = async (opts) => {
     throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
   }
 
-  const {publicDir, canvasFolder, jobs} = resolveJobs(opts.target, opts.output, opts.exif, opts.sign, opts.dark);
+  const {publicDir, canvasFolder, jobs} = resolveJobs(opts.target, opts.output, opts);
   const canvas = loadStillCanvasConfig(canvasFolder);
   if (opts.dark) canvas.background = '#000000';
   const {renderStill, selectComposition} = loadRemotionRenderer();

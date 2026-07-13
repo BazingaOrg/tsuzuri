@@ -13,20 +13,20 @@ test('default and EXIF variants use separate output names', () => {
   const dir = fixture();
   const photo = path.join(dir, 'IMG.jpg');
   fs.writeFileSync(photo, 'x');
-  assert.equal(path.basename(resolveJobs(photo, null, false).jobs[0].outPath), 'IMG.png');
-  assert.equal(path.basename(resolveJobs(photo, null, true).jobs[0].outPath), 'IMG-exif.png');
-  assert.equal(path.basename(resolveJobs(photo, null, false, true).jobs[0].outPath), 'IMG-sign.png');
-  assert.equal(path.basename(resolveJobs(photo, null, true, true).jobs[0].outPath), 'IMG-exif-sign.png');
+  assert.equal(path.basename(resolveJobs(photo, null).jobs[0].outPath), 'IMG.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {exif: true}).jobs[0].outPath), 'IMG-exif.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {sign: true}).jobs[0].outPath), 'IMG-sign.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {exif: true, sign: true}).jobs[0].outPath), 'IMG-exif-sign.png');
 });
 
 test('dark variants append a final suffix for every EXIF/sign combination', () => {
   const dir = fixture();
   const photo = path.join(dir, 'IMG.jpg');
   fs.writeFileSync(photo, 'x');
-  assert.equal(path.basename(resolveJobs(photo, null, false, false, true).jobs[0].outPath), 'IMG-dark.png');
-  assert.equal(path.basename(resolveJobs(photo, null, true, false, true).jobs[0].outPath), 'IMG-exif-dark.png');
-  assert.equal(path.basename(resolveJobs(photo, null, false, true, true).jobs[0].outPath), 'IMG-sign-dark.png');
-  assert.equal(path.basename(resolveJobs(photo, null, true, true, true).jobs[0].outPath), 'IMG-exif-sign-dark.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {dark: true}).jobs[0].outPath), 'IMG-dark.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {exif: true, dark: true}).jobs[0].outPath), 'IMG-exif-dark.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {sign: true, dark: true}).jobs[0].outPath), 'IMG-sign-dark.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {exif: true, sign: true, dark: true}).jobs[0].outPath), 'IMG-exif-sign-dark.png');
 });
 
 test('single-file non-PNG output extension is rejected', () => {
@@ -41,7 +41,7 @@ test('a trailing separator on -o marks directory intent even before the director
   const photo = path.join(dir, 'IMG.jpg');
   fs.writeFileSync(photo, 'x');
   // `\` 结尾只在 win32 视为分隔符(POSIX 上是合法文件名字符),此处只验证 `/`
-  const job = resolveJobs(photo, `${path.join(dir, 'cards')}/`, true).jobs[0];
+  const job = resolveJobs(photo, `${path.join(dir, 'cards')}/`, {exif: true}).jobs[0];
   assert.equal(path.basename(path.dirname(job.outPath)), 'cards');
   assert.equal(path.basename(job.outPath), 'IMG-exif.png');
 });
@@ -50,6 +50,14 @@ test('same-stem batch sources retain their source extension', () => {
   const dir = fixture();
   fs.writeFileSync(path.join(dir, 'a.jpg'), 'x');
   fs.writeFileSync(path.join(dir, 'a.webp'), 'x');
-  const names = resolveJobs(dir, null, false).jobs.map((job) => path.basename(job.outPath));
+  const names = resolveJobs(dir, null).jobs.map((job) => path.basename(job.outPath));
   assert.deepEqual(names, ['a-jpg.png', 'a-webp.png']);
+});
+
+test('batch rejects source names that collide across variant runs', () => {
+  const dir = fixture();
+  fs.writeFileSync(path.join(dir, 'IMG.jpg'), 'x');
+  fs.writeFileSync(path.join(dir, 'IMG-dark.jpg'), 'x');
+  assert.throws(() => resolveJobs(dir, null), /still 变体输出冲突/);
+  assert.throws(() => resolveJobs(dir, null, {dark: true}), /IMG-dark\.png/);
 });

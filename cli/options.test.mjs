@@ -107,6 +107,8 @@ test('still --scale must be integer 1–4', () => {
 
 test('still without a target is a usage error', () => {
   assert.throws(() => parseArgs(['still']), /tsuzuri still/);
+  assert.throws(() => parseArgs(['still']), /--dark/);
+  assert.throws(() => parseArgs(['still']), /--skip-existing/);
 });
 
 test('missing folder in the default command reports usage listing all forms', () => {
