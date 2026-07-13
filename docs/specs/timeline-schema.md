@@ -1,9 +1,8 @@
-# timeline.json Schema v1(阶段契约)
+# timeline.json Schema v1
 
-analyze/plan(Python)与 render(Remotion)之间的唯一契约。photos 与 subtitles
-是两个平级数组、独立时间线,渲染层各消费各的。
+`timeline.json` 是 Python analyzer/planner 与 Remotion renderer 之间的阶段契约。`photos` 和 `subtitles` 是相互独立的时间线。
 
-来源:[实现方案第三节](../tsuzuri-implementation-plan.md)。字段修改需先改本文档。
+字段变更时应同步更新本文档、planner 输出和 renderer 类型。
 
 ## 顶层结构
 
@@ -20,32 +19,32 @@ analyze/plan(Python)与 render(Remotion)之间的唯一契约。photos 与 subti
 
 | 字段 | 类型 | 说明 |
 | ---- | ---- | ---- |
-| `version` | int | 固定 `1` |
-| `audio` | string | 音频路径,相对素材根目录(渲染时的 `--public-dir`) |
-| `duration` | float | 成片总时长(秒),= 音频时长(或裁剪后时长) |
+| `version` | int | 固定为 `1` |
+| `audio` | string | 相对素材根目录的音频路径 |
+| `duration` | float | 成片总时长（秒），可能短于原音频 |
 | `width` / `height` | int | 默认 1920 × 1080 |
-| `fps` | int | 默认 **60** |
+| `fps` | int | 默认 60 |
 | `background` | string | 默认 `#FFFFFF` |
-| `photo_scale` | float | 默认 `0.8`,定义照片 fit 安全框占画布宽高的比例;照片在整个可见区间保持固定几何尺寸 |
-| `input_hash` | string? | CLI 写入的输入素材 hash,用于区分"手改 timeline"与"素材变了" |
-| `branding` | object? | 片头/片尾个性化;plan 只写用户显式配置的键,缺省字段走渲染器内置默认(老 timeline 无此字段时行为不变) |
-| `branding.outro_text` | string? | 片尾谢幕语;空串 `""` 隐藏;缺省 `"Thanks for watching :)"` |
-| `branding.signature` | string? | 签名 SVG 相对素材根目录;缺省用内置签名 |
-| `branding.intro` | bool? | 片头开关;缺省 `true`;`false` 时 plan 与渲染器均跳过片头 |
+| `photo_scale` | float | 默认 `0.8`，照片安全框占画布的比例 |
+| `input_hash` | string? | CLI 计算的素材与配置摘要，用于判断输入是否变化 |
+| `plan_checksum` | string? | planner 计算的文档摘要，用于识别手动编辑并决定是否刷新时间线 |
+| `branding` | object? | 用户显式配置的片头与片尾设置 |
+| `branding.outro_text` | string? | 片尾文案；空串隐藏，缺省使用渲染器默认值 |
+| `branding.signature` | string? | 签名 SVG 相对素材根目录的路径 |
+| `branding.intro` | bool? | 片头开关，缺省为 `true` |
 
 ## photos[]
 
-按 `start` 升序;首张 `start = 0`,末张 `end = meta.duration`。
-相邻两张区间衔接:`photos[i].end == photos[i+1].start`。
+按 `start` 升序；首张 `start = 0`，末张 `end = meta.duration`，相邻照片的 `end` 与 `start` 相等。
 
 | 字段 | 类型 | 说明 |
 | ---- | ---- | ---- |
-| `src` | string | 图片路径,相对素材根目录(渲染时的 `--public-dir`) |
-| `start` / `end` | float | 秒。`album` / `crossfade` 含淡化前沿:切换点 = opacity 淡化中点,即上一张 `end` 与本张 `start` 都等于对齐节拍的时间点,淡化区间为 `[start - d/2, start + d/2]` |
-| `transition.type` | string | `"album"` \| `"crossfade"` \| `"cut"` \| `"none"`;首张固定为 `"none"` |
-| `transition.duration` | float | 秒。`album` 默认 0.4,做节拍中点对齐的短时整页叠化;`crossfade` 默认 0.6;`cut` / `none` 为 0。旧页保持不透明、新页覆盖淡入,所有类型都不改变照片几何尺寸 |
-| `motion.type` | string | v1 兼容字段,历史值为 `"kenburns"` \| `"none"`;现已废弃且渲染器不再消费。新 planner 固定写 `"none"` |
-| `motion.from` / `motion.to` | float | v1 兼容占位,历史值继续允许但不影响渲染。新 planner 固定写 `1.0` / `1.0` |
+| `src` | string | 相对素材根目录的图片路径 |
+| `start` / `end` | float | 可见区间（秒）；边界是对齐节拍的切换中点 |
+| `transition.type` | string | `album`、`crossfade`、`cut` 或 `none`；首张为 `none` |
+| `transition.duration` | float | 过渡时长（秒）；`cut` 和 `none` 为 0 |
+| `motion.type` | string | v1 兼容字段；新 planner 固定写 `none`，renderer 不再消费 |
+| `motion.from` / `motion.to` | float | v1 兼容字段；新 planner 固定写 `1.0` |
 
 ## subtitles[]
 
@@ -53,10 +52,10 @@ analyze/plan(Python)与 render(Remotion)之间的唯一契约。photos 与 subti
 | ---- | ---- | ---- |
 | `text` | string | 单行歌词 |
 | `lang` | string | `ja` \| `zh` \| `en` \| `mixed` — 决定字体路由 |
-| `start` / `end` | float | 秒,来自用户 LRC 或 Whisper 段时间戳 |
-| `confidence` | float | LRC 固定为 `1.0`;Whisper 使用识别置信度。渲染层按阈值(默认 0.6)兜底过滤 |
+| `start` / `end` | float | 来自 LRC 或 Whisper 的时间戳（秒） |
+| `confidence` | float | LRC 固定为 `1.0`；Whisper 使用识别置信度，低于 0.6 的行通常已在规划阶段过滤 |
 
-允许时间空洞(间奏):无字幕覆盖的时段字幕轨整体淡出留白。
+字幕时间线允许空洞，无字幕覆盖时保持留白。
 
 ## beats(可选)
 
@@ -66,4 +65,4 @@ analyze/plan(Python)与 render(Remotion)之间的唯一契约。photos 与 subti
 
 ## Fixture
 
-`examples/fixture/` 内有默认 timeline 与生成素材,用于 Studio 预览和渲染回归检查。
+`examples/fixture/` 包含 Studio 预览和渲染回归使用的示例时间线与素材。
