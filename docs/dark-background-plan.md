@@ -100,9 +100,10 @@ timeline / still props 全链路透传，片尾淡场、片头卡、album 过渡
   `#000000`（优先于 toml 的 `background`）。输出文件名后缀链追加 `-dark`
   （如 `001-exif-sign-dark.png`），避免明暗两版互相覆盖,
   `--skip-existing` 语义随后缀自然区分。
-- **菜单**：选 2（still）在两问 y/N 后加第三问「黑色背景?[y/N]」，默认否；
+- **菜单**：选 2（still）在两问 y/N 后加第三问
+  「使用黑色背景（暗色展陈）? [y/N，回车=否]」；
   `buildArgvFromChoices` 追加 `--dark`。等效命令回显随之教学：
-  `└ 等效命令: tsuzuri still ./photos --exif --sign --dark`。
+  `└ 等效命令: node cli/tsuzuri.mjs still ./photos --exif --sign --dark`。
   选 1（视频）不加问答——保持"拖进来就走"，暗底视频由收尾那句 toml 提示
   引导（提示文案已含"分辨率/过渡/字幕…"，补"背景"一词即可）。
 - **USAGE**：still 选项行补 `--dark`。

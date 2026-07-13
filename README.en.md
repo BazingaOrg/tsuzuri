@@ -69,7 +69,7 @@ Video clips (`.mp4`, `.mov`, …) are not supported yet: they won't appear in th
 
 ## Commands
 
-Run `node cli/tsuzuri.mjs` with no arguments to get an interactive menu: pick a number, drag a path in, and the equivalent one-liner is echoed before running — use it once and you know the direct command. The menu only appears in an interactive terminal; scripts and pipes get the usual usage error.
+Run `node cli/tsuzuri.mjs` with no arguments to get an interactive menu: enter a number, type or drag in a path, and a copyable equivalent command is echoed before running. The menu only appears in an interactive terminal; scripts and pipes get the usual usage error.
 
 ```bash
 node cli/tsuzuri.mjs                            # interactive menu (numbered choices, first-run friendly)

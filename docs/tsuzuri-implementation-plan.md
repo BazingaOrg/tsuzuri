@@ -212,7 +212,7 @@ tsuzuri ./osaka-trip        # 唯一的日常命令
 | 微调重渲 | timeline.json 副产物永远输出;重跑同一命令时,若输入 hash 未变而 timeline 被改过 → 跳过分析直接渲染;若输入变了 → 重新规划并提示 |
 
 
-输入 hash 存于 `timeline.meta.input_hash`,以此区分"用户手改了 timeline"和"素材变了"。渲染前打印计划摘要但不询问确认,直接开始。主状态行统一用 `●` 前缀:默认前景色表示信息,橙色 `#D97757` 表示阶段开始,绿色表示完成,黄色表示提醒,红色表示错误;次级详情用调暗的 `└`。渲染阶段使用固定宽度百分比显示 Bundling、Rendering frames 与 Encoding video,不显示抖动较大的剩余秒数。`NO_COLOR`、`TERM=dumb` 或非 TTY 输出不带 ANSI 颜色。
+输入 hash 存于 `timeline.meta.input_hash`,以此区分"用户手改了 timeline"和"素材变了"。渲染前打印计划摘要但不询问确认,直接开始。主状态行统一用 `●` 前缀:默认前景色表示信息,橙色 `#D97757` 表示阶段开始,绿色表示完成,黄色表示提醒,红色表示错误;次级详情用调暗的 `└`。渲染阶段使用固定 20 格进度条 + 百分比显示 Bundling、Rendering frames 与 Encoding video,不显示抖动较大的剩余秒数。`NO_COLOR`、`TERM=dumb` 或非 TTY 输出不带 ANSI 颜色。
 
 **高级用户的唯一口子**:文件夹内可选放置 `tsuzuri.toml`(photo_scale、min_gap、字幕开关、信息条开关等),缺省即全默认值。
 

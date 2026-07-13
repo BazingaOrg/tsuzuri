@@ -38,21 +38,21 @@ $ tsuzuri
   3. 预览歌词识别(lyrics)
   4. 检查依赖(doctor)
 
-选择 [1-4],Ctrl+C 退出:
+输入序号 [1-4] 后回车，Ctrl+C 退出:
 ```
 
-- 选 1/3:提示「把素材文件夹拖进终端后回车」(macOS/Windows 拖拽都会自动
-  填入路径,对新手最友好)。
-- 选 2:先要路径(文件或文件夹皆可),再两问 `y/N`:「叠加 EXIF 展签?」
-  「加入签名落款?」。`--scale`/`--skip-existing`/`-o` 不进菜单——低频选项
-  留给命令行,菜单保持三步内完成。
+- 选 1/3:提示「输入素材文件夹路径，或拖入后回车」(既支持手输相对/绝对路径，
+  也支持 macOS/Windows 拖拽自动填入路径)。
+- 选 2:先要路径(文件或文件夹皆可),再三问 `y/N`:「显示 EXIF 拍摄信息?」
+  「加入签名落款?」「使用黑色背景（暗色展陈）?」,均明确提示直接回车为否。
+  `--scale`/`--skip-existing`/`-o` 不进菜单——低频选项留给命令行。
 - 选 4:直接执行。
 - **执行前回显等效命令**(菜单的教学使命):
-  `└ 等效命令: tsuzuri still ./photos --exif --sign`
+  `└ 等效命令: node cli/tsuzuri.mjs still ./photos --exif --sign`
   用一次菜单就学会直达写法。
 - 执行方式:菜单只负责**组装 argv 数组交回 `parseArgs`**,与命令行走完全
   同一条代码路径——不新增第二套参数语义,菜单永远不会与 CLI 行为漂移。
-- 收尾提示一句:`└ 进阶配置(分辨率/过渡/字幕…)见素材夹 tsuzuri.toml,参考 docs/config.md`
+- 收尾提示一句:`└ 进阶配置(分辨率/过渡/字幕/背景…)见素材夹 tsuzuri.toml,参考 docs/config.md`
   ——不做配置向导,"零配置出片"是卖点,不把它做成必答问卷。
 
 ### 输入规整(拖拽路径的跨平台差异)
@@ -114,8 +114,8 @@ $ tsuzuri
    `argv 为空 && stdin.isTTY && stdout.isTTY` → `runMenu()` 返回 argv 数组,
    仍交给 `parseArgs` 走原路;非 TTY 保持现有 USAGE 报错。补测试:空 argv
    非 TTY 路径行为不变。
-3. **等效命令回显 + toml 提示**:执行前 `term.detail` 输出;still 分支两个
-   y/N 问答。
+3. **等效命令回显 + toml 提示**:执行前 `term.detail` 输出;still 分支三个
+   y/N 问答，均提示直接回车为否。
 4. **Windows 小修**:still.mjs `-o` 结尾分隔符同时认 `/` 与 `\`;menu 的
    `rl.on('SIGINT')`;两处都补测试(分隔符可测,SIGINT 写进手工清单)。
 5. **文档**:README 两语版——命令速查上方加一句「不带参数运行 `tsuzuri`

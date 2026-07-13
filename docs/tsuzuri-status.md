@@ -50,7 +50,7 @@
 - 产物目录修订(2026-07-11):JSON 统一写入素材目录下 `metadata/`,默认 MP4 写入 `output/`;`-o` 继续覆盖。根目录旧 JSON 安全复制,原文件保留;不自动迁移短暂使用过的 `tsuzuri/` 目录。
 - 用户歌词入口(2026-07-11):素材目录自动识别唯一 `.lrc`,优先于 Whisper 并纳入 input hash;支持 UTF-8/BOM、常用行时间戳、多时间戳、offset、元数据与空白清字幕边界。
 - 终端输出统一使用语义圆点:`●` 默认色表示信息,橙色 `#D97757` 表示阶段开始,绿色表示成功,黄色表示提醒,红色表示错误;次级详情使用调暗的 `└`。warn/error 写 stderr,其余写 stdout;`NO_COLOR`、`TERM=dumb` 或非 TTY 时不输出 ANSI 颜色,多行消息逐行重复前缀。
-- Remotion 渲染改走公开的 bundler/renderer API,终端以固定宽度百分比分别显示打包、帧渲染和视频编码进度,移除波动的 ETA 秒数;非 TTY 仅输出 25% 里程碑。
+- Remotion 渲染改走公开的 bundler/renderer API,终端以固定 20 格进度条 + 百分比分别显示打包、帧渲染和视频编码进度,移除波动的 ETA 秒数;非 TTY 仍仅输出 25% 里程碑。
 - 字幕置信度过滤(0.6)移到 plan 层并明确打印被滤行数,timeline.json 所见即所得;渲染层同阈值兜底。
 - 本地模型约定目录 `models/whisper-<size>-mlx`(gitignore),`TSUZURI_WHISPER_MODEL` 可指定尺寸或路径。
 - 本机环境有 SOCKS 代理,已加 `httpx[socks]` 依赖(顺带惠及代理用户)。
