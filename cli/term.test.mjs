@@ -99,7 +99,7 @@ test('output option requires a value', () => {
   assert.throws(() => parseArgs(['album', '--output']), /需要输出文件路径/);
 });
 
-test('interactive render progress uses stable-width percentages', () => {
+test('interactive render progress uses stable-width bars and percentages', () => {
   const stdout = stream(true);
   const progress = createPercentProgress({stream: stdout});
 
@@ -110,14 +110,14 @@ test('interactive render progress uses stable-width percentages', () => {
 
   assert.equal(
     stdout.output,
-    '\r\x1b[2K└ Rendering frames     7%' +
-      '\r\x1b[2K└ Rendering frames    42%\n' +
-      '\r\x1b[2K└ Encoding video     100%\n',
+    '\r\x1b[2K└ Rendering frames   [█░░░░░░░░░░░░░░░░░░░]   7%' +
+      '\r\x1b[2K└ Rendering frames   [████████░░░░░░░░░░░░]  42%\n' +
+      '\r\x1b[2K└ Encoding video     [████████████████████] 100%\n',
   );
   assert.doesNotMatch(stdout.output, /remaining|\d+s/);
 });
 
-test('redirected render progress emits percentage milestones', () => {
+test('redirected render progress emits bar and percentage milestones', () => {
   const stdout = stream(false);
   const progress = createPercentProgress({stream: stdout});
 
@@ -128,11 +128,11 @@ test('redirected render progress emits percentage milestones', () => {
 
   assert.equal(
     stdout.output,
-    '└ Rendering frames     0%\n' +
-      '└ Rendering frames    25%\n' +
-      '└ Rendering frames    51%\n' +
-      '└ Rendering frames    76%\n' +
-      '└ Rendering frames   100%\n',
+    '└ Rendering frames   [░░░░░░░░░░░░░░░░░░░░]   0%\n' +
+      '└ Rendering frames   [█████░░░░░░░░░░░░░░░]  25%\n' +
+      '└ Rendering frames   [██████████░░░░░░░░░░]  51%\n' +
+      '└ Rendering frames   [███████████████░░░░░]  76%\n' +
+      '└ Rendering frames   [████████████████████] 100%\n',
   );
 });
 

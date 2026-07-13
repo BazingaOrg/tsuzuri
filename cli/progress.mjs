@@ -1,7 +1,14 @@
 const clampPercent = (value) =>
   Math.max(0, Math.min(100, Math.round(Number(value) * 100)));
 
-/** Stable-width percentage output for long-running renderer stages. */
+const BAR_WIDTH = 20;
+
+const formatBar = (percent) => {
+  const filled = Math.floor((percent * BAR_WIDTH) / 100);
+  return `[${'█'.repeat(filled)}${'░'.repeat(BAR_WIDTH - filled)}]`;
+};
+
+/** Stable-width progress bar + percentage output for long-running renderer stages. */
 export const createPercentProgress = ({stream = process.stdout} = {}) => {
   let label = null;
   let percent = -1;
@@ -12,7 +19,8 @@ export const createPercentProgress = ({stream = process.stdout} = {}) => {
     if (interactive && label !== null) stream.write('\n');
   };
 
-  const currentLine = () => `└ ${label.padEnd(18)} ${String(percent).padStart(3)}%`;
+  const currentLine = () =>
+    `└ ${label.padEnd(18)} ${formatBar(percent)} ${String(percent).padStart(3)}%`;
 
   return {
     update(nextLabel, value) {
