@@ -12,7 +12,7 @@ import {Intro, introDuration} from './Intro';
 import {Outro} from './Outro';
 import {Photo} from './Photo';
 import {Subtitle} from './Subtitle';
-import {ANIMATION, INTRO, OUTRO, SUBTITLE} from './theme';
+import {ANIMATION, INTRO, OUTRO, SUBTITLE, getPalette} from './theme';
 import {getFadeDuration} from './transition';
 import type {PhotoClip, Timeline} from './types';
 
@@ -26,6 +26,7 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
   const frame = useCurrentFrame();
   const {fps, height, durationInFrames} = useVideoConfig();
   const t = frame / fps;
+  const palette = getPalette(meta.background);
 
   // 视觉规格以 1080p 为基准,非 1080p 输出等比缩放
   const scale = height / 1080;
@@ -90,6 +91,7 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
           backgroundColor={meta.background}
           safeWidth={safeWidth}
           safeHeight={safeHeight}
+          palette={palette}
         />
       ))}
       {visibleSubtitles.map((l) => (
@@ -98,13 +100,14 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
           line={l}
           scale={scale}
           bandCenterFromBottom={bandCenterFromBottom}
+          palette={palette}
         />
       ))}
       {whiteFade > 0 ? (
         <AbsoluteFill style={{backgroundColor: meta.background, opacity: whiteFade}} />
       ) : null}
       {/* 谢幕语:白场过半后浮现,持续到最后一帧;空串隐藏 */}
-      <Outro text={outroText} scale={scale} opacity={outroOpacity} />
+      <Outro text={outroText} scale={scale} opacity={outroOpacity} palette={palette} />
       {/* 片头写签名:盖在一切之上,淡出后露出已在播放的第一页。
           按帧比较,避免浮点求和导致收尾帧(opacity 归零帧)被提前跳过 */}
       {showIntro && frame <= Math.round(introDuration * fps) ? (
@@ -112,6 +115,7 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
           backgroundColor={meta.background}
           scale={scale}
           signatureSrc={signatureSrc}
+          palette={palette}
         />
       ) : null}
     </AbsoluteFill>

@@ -1,6 +1,6 @@
 import React from 'react';
 import {Easing, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
-import {FONT_FAMILY, SUBTITLE} from './theme';
+import {FONT_FAMILY, SUBTITLE, type Palette} from './theme';
 import type {SubtitleLine} from './types';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
@@ -36,7 +36,8 @@ export const Subtitle: React.FC<{
   line: SubtitleLine;
   scale: number;
   bandCenterFromBottom: number; // 照片安全框下缘到画布底部的带状区域中心,距底 px
-}> = ({line, scale, bandCenterFromBottom}) => {
+  palette: Palette;
+}> = ({line, scale, bandCenterFromBottom, palette}) => {
   const frame = useCurrentFrame();
   const {fps, width} = useVideoConfig();
   const t = frame / fps;
@@ -86,7 +87,7 @@ export const Subtitle: React.FC<{
           fontFamily: resolveFontFamily(line.text, line.lang),
           fontSize,
           fontWeight: SUBTITLE.fontWeight,
-          color: SUBTITLE.color,
+          color: palette.text,
           lineHeight: 1,
           letterSpacing,
           // letter-spacing 会在末字符后多出一份间距,负 margin 抵消以保持视觉居中

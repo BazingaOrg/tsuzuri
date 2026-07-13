@@ -1,7 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
 import {Signature, useSignatureData} from './Signature';
-import {INTRO} from './theme';
+import {INTRO, type Palette} from './theme';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
@@ -22,7 +22,8 @@ export const Intro: React.FC<{
   scale: number;
   /** 素材文件夹内签名 SVG 相对路径;缺省用内置签名 */
   signatureSrc?: string;
-}> = ({backgroundColor, scale, signatureSrc}) => {
+  palette: Palette;
+}> = ({backgroundColor, scale, signatureSrc, palette}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const t = frame / fps;
@@ -64,7 +65,7 @@ export const Intro: React.FC<{
     >
       <Signature
         data={signature}
-        style={{width, height, color: INTRO.color, opacity: INTRO.opacity, display: 'block'}}
+        style={{width, height, color: palette.text, opacity: INTRO.opacity, display: 'block'}}
         pathProps={(path) => ({
           fillOpacity,
           stroke: 'currentColor',

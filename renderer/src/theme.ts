@@ -7,19 +7,65 @@ export const CANVAS = {
   background: '#FFFFFF',
 } as const;
 
-export const PHOTO = {
-  // 中性冷黑三层阴影:贴合层定边缘,中层给体积,远层给纵深;白底上不偏色
-  shadowLayers: [
-    {x: 0, y: 3, blur: 8, spread: -1, color: 'rgba(10, 12, 16, 0.32)'},
-    {x: 0, y: 16, blur: 36, spread: -8, color: 'rgba(10, 12, 16, 0.28)'},
-    {x: 0, y: 36, blur: 72, spread: -16, color: 'rgba(10, 12, 16, 0.18)'},
-  ],
-  outlineWidth: 1,
-  outlineColor: 'rgba(16, 20, 26, 0.10)',
+export const PALETTES = {
+  light: {
+    text: '#37332D',
+    secondaryText: '#B0AEA6',
+    divider: '#E4E2DC',
+    photoOutline: 'rgba(16, 20, 26, 0.10)',
+    photoShadowLayers: [
+      {x: 0, y: 3, blur: 8, spread: -1, color: 'rgba(10, 12, 16, 0.32)'},
+      {x: 0, y: 16, blur: 36, spread: -8, color: 'rgba(10, 12, 16, 0.28)'},
+      {x: 0, y: 36, blur: 72, spread: -16, color: 'rgba(10, 12, 16, 0.18)'},
+    ],
+  },
+  dark: {
+    text: '#E8E5DE',
+    secondaryText: '#807D76',
+    divider: '#2A2925',
+    photoOutline: 'rgba(232, 229, 222, 0.16)',
+    photoShadowLayers: [
+      {x: 0, y: 0, blur: 80, spread: -12, color: 'rgba(255, 252, 244, 0.06)'},
+    ],
+  },
 } as const;
 
-export const getPhotoShadow = (scale: number): string =>
-  PHOTO.shadowLayers
+export type Palette = (typeof PALETTES)[keyof typeof PALETTES];
+
+const getHexLuminance = (color: string): number | null => {
+  const match = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return null;
+  const hex = match[1].length === 3
+    ? [...match[1]].map((digit) => digit + digit).join('')
+    : match[1];
+  const channels = [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255);
+  const linear = channels.map((channel) =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+  );
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+};
+
+const contrastRatio = (a: number, b: number): number =>
+  (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+const LIGHT_TEXT_LUMINANCE = getHexLuminance(PALETTES.light.text)!;
+const DARK_TEXT_LUMINANCE = getHexLuminance(PALETTES.dark.text)!;
+
+/** Hex 背景选择主文字对比度更高的色板;非法 CSS 值保持旧版明色前景。 */
+export const getPalette = (background: string): Palette => {
+  const backgroundLuminance = getHexLuminance(background);
+  if (backgroundLuminance === null) return PALETTES.light;
+  const lightPaletteContrast = contrastRatio(backgroundLuminance, LIGHT_TEXT_LUMINANCE);
+  const darkPaletteContrast = contrastRatio(backgroundLuminance, DARK_TEXT_LUMINANCE);
+  return lightPaletteContrast >= darkPaletteContrast ? PALETTES.light : PALETTES.dark;
+};
+
+export const PHOTO = {
+  outlineWidth: 1,
+} as const;
+
+export const getPhotoShadow = (scale: number, palette: Palette): string =>
+  palette.photoShadowLayers
     .map(
       ({x, y, blur, spread, color}) =>
         `${x * scale}px ${y * scale}px ${blur * scale}px ${spread * scale}px ${color}`,
@@ -30,7 +76,6 @@ export const SUBTITLE = {
   // 低干扰的摄影画展题签:纤细、小字号、缓入缓出,避免抢夺照片视觉焦点。
   fontSize: 36,
   fontWeight: 500,
-  color: '#37332D',
   letterSpacing: '0.12em',
   letterSpacingCompact: '0.06em', // 单行超过约 18 个全角字符时回退
   compactThreshold: 18, // 全角字符等效数
@@ -44,20 +89,18 @@ export const SUBTITLE = {
 export const INFO_BAR = {
   // 可选右下角信息条(配置开关,默认关)
   fontSize: 20,
-  color: '#B0AEA6',
 } as const;
 
 export const ANIMATION = {
   audioFadeDuration: 1.5, // 秒;片尾音频淡出
   // 镜像见 analyzer/plan.py WHITE_FADE_DURATION——plan 据此为末张照片预留可见时长,
   // 改这里需要同步改那边
-  whiteFadeDuration: 2.5, // 秒;片尾画面淡至白(比音频长,给谢幕语留可读时间)
+  whiteFadeDuration: 2.5, // 秒;片尾画面淡至画布色(比音频长,给谢幕语留可读时间)
 } as const;
 
 export const INTRO = {
-  // 片头:白画布上手写签名沿笔迹描边写出,再上墨填充,随后整卡淡出
+  // 片头:画布上手写签名沿笔迹描边写出,再上墨填充,随后整卡淡出
   height: 120, // 签名字形高度(px,1080p 基准)
-  color: '#37332D', // 与字幕同级的墨色
   opacity: 0.9,
   strokeWidth: 2.5, // viewBox 单位;书写阶段的笔迹粗细
   // drawDuration + inkDuration + hold + fadeOut 之和镜像见
@@ -72,11 +115,10 @@ export const INTRO = {
 } as const;
 
 export const OUTRO = {
-  // 片尾谢幕语:白场过半后居中浮现,持续到最后一帧;沿用字幕的题签样式
+  // 片尾谢幕语:淡场过半后居中浮现,持续到最后一帧;沿用字幕的题签样式
   text: 'Thanks for watching :)',
   fontSize: 36,
   fontWeight: 500,
-  color: '#37332D',
   letterSpacing: '0.12em',
   fontFamily: `'Noto Serif', serif`, // 与英文字幕同字体
   fadeRange: [0.5, 0.85] as const, // 随白场进度淡入的区间
@@ -105,7 +147,6 @@ export const STILL = {
     panelHeight: 44,
     bottomInset: 26,
     opacity: 0.65,
-    color: INTRO.color,
   },
   typography: {
     // 参数行为视觉主角(字号同字幕 36);相机/镜头次之;时间最小用 INFO_BAR 灰
@@ -116,11 +157,8 @@ export const STILL = {
     lineGap: 10, // 行间距(px,1080p)
     groupGap: 28, // 相机组与参数组、参数组与时间之间
     paramsLineGap: 8,
-    dividerColor: '#E4E2DC',
     dividerWidth: 0.5,
     fontFamily: `'Noto Serif', 'Noto Serif JP', 'Noto Serif SC', serif`,
-    color: '#37332D',
-    datetimeColor: '#B0AEA6', // INFO_BAR
     letterSpacing: '0.12em',
   },
 } as const;

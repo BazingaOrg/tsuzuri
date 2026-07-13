@@ -2,6 +2,7 @@ import React from 'react';
 import {AbsoluteFill, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {FramedPhoto} from './FramedPhoto';
 import {getFadeDuration} from './transition';
+import type {Palette} from './theme';
 import type {PhotoClip} from './types';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
@@ -17,7 +18,8 @@ export const Photo: React.FC<{
   backgroundColor: string;
   safeWidth: number;
   safeHeight: number;
-}> = ({clip, backgroundColor, safeWidth, safeHeight}) => {
+  palette: Palette;
+}> = ({clip, backgroundColor, safeWidth, safeHeight, palette}) => {
   const frame = useCurrentFrame();
   const {fps, height} = useVideoConfig();
   const t = frame / fps;
@@ -45,6 +47,7 @@ export const Photo: React.FC<{
         maxWidth={safeWidth}
         maxHeight={safeHeight}
         renderScale={renderScale}
+        palette={palette}
       />
     </AbsoluteFill>
   );

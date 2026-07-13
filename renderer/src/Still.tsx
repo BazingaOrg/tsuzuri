@@ -3,7 +3,7 @@ import {AbsoluteFill, staticFile} from 'remotion';
 import './fonts';
 import {FramedPhoto} from './FramedPhoto';
 import {Signature, useSignatureData, type SignatureData} from './Signature';
-import {CANVAS, STILL} from './theme';
+import {CANVAS, STILL, getPalette, type Palette} from './theme';
 
 export type StillExif = {
   camera?: string;
@@ -25,12 +25,13 @@ export type StillProps = {
 
 const toStatic = (src: string) => staticFile(src.replace(/^\.\//, ''));
 
-const ExifPanel: React.FC<{exif: StillExif; scale: number; width: number; sign: boolean; signature: SignatureData | null}> = ({
+const ExifPanel: React.FC<{exif: StillExif; scale: number; width: number; sign: boolean; signature: SignatureData | null; palette: Palette}> = ({
   exif,
   scale,
   width,
   sign,
   signature,
+  palette,
 }) => {
   const t = STILL.typography;
   const line = (text: string | undefined, fontSize: number, color: string, weight = 500) =>
@@ -60,25 +61,25 @@ const ExifPanel: React.FC<{exif: StillExif; scale: number; width: number; sign: 
         textAlign: 'left',
       }}
     >
-      {line(exif.camera, t.cameraFontSize, t.color)}
-      {line(exif.lens, t.lensFontSize, t.color)}
+      {line(exif.camera, t.cameraFontSize, palette.text)}
+      {line(exif.lens, t.lensFontSize, palette.text)}
       {(exif.camera || exif.lens) && (exif.params || exif.datetime) ? (
         <div style={{height: t.groupGap * scale}} />
       ) : null}
       {exif.params?.length ? (
         <>
-          <div style={{width: `${t.dividerWidth * 100}%`, height: scale, background: t.dividerColor, marginBottom: t.groupGap * scale}} />
+          <div style={{width: `${t.dividerWidth * 100}%`, height: scale, background: palette.divider, marginBottom: t.groupGap * scale}} />
           {exif.params.map((param) => (
-            <div key={param} style={{fontFamily: t.fontFamily, fontSize: t.paramsFontSize * scale, fontWeight: 500, letterSpacing: t.letterSpacing, color: t.color, lineHeight: 1.2, marginBottom: t.paramsLineGap * scale}}>{param}</div>
+            <div key={param} style={{fontFamily: t.fontFamily, fontSize: t.paramsFontSize * scale, fontWeight: 500, letterSpacing: t.letterSpacing, color: palette.text, lineHeight: 1.2, marginBottom: t.paramsLineGap * scale}}>{param}</div>
           ))}
         </>
       ) : null}
       {(exif.params && exif.datetime) || ((exif.camera || exif.lens) && exif.datetime) ? (
         <div style={{height: t.groupGap * scale}} />
       ) : null}
-      {line(exif.datetime, t.datetimeFontSize, t.datetimeColor, 400)}
+      {line(exif.datetime, t.datetimeFontSize, palette.secondaryText, 400)}
       {sign && signature ? (
-        <div style={{marginTop: t.groupGap * scale, color: STILL.signature.color, opacity: STILL.signature.opacity}}>
+        <div style={{marginTop: t.groupGap * scale, color: palette.text, opacity: STILL.signature.opacity}}>
           <Signature data={signature} style={{height: STILL.signature.panelHeight * scale, maxWidth: width}} pathProps={{fill: 'currentColor'}} />
         </div>
       ) : null}
@@ -100,6 +101,7 @@ export const Still: React.FC<StillProps> = ({
   signatureSrc,
 }) => {
   const scale = height / 1080;
+  const palette = getPalette(background);
   const signature = useSignatureData(sign ? signatureSrc : undefined);
   const hasExif = Boolean(exif && (exif.camera || exif.lens || exif.params || exif.datetime));
 
@@ -114,9 +116,9 @@ export const Still: React.FC<StillProps> = ({
           alignItems: 'center',
         }}
       >
-        <FramedPhoto src={toStatic(src)} maxWidth={safeW} maxHeight={safeH} renderScale={scale} />
+        <FramedPhoto src={toStatic(src)} maxWidth={safeW} maxHeight={safeH} renderScale={scale} palette={palette} />
         {sign && signature ? (
-          <div style={{position: 'absolute', left: 0, right: 0, bottom: STILL.signature.bottomInset * scale, display: 'flex', justifyContent: 'center', color: STILL.signature.color, opacity: STILL.signature.opacity}}>
+          <div style={{position: 'absolute', left: 0, right: 0, bottom: STILL.signature.bottomInset * scale, display: 'flex', justifyContent: 'center', color: palette.text, opacity: STILL.signature.opacity}}>
             <Signature data={signature} style={{height: STILL.signature.height * scale, maxWidth: safeW}} pathProps={{fill: 'currentColor'}} />
           </div>
         ) : null}
@@ -153,8 +155,9 @@ export const Still: React.FC<StillProps> = ({
           maxWidth={photoMaxW}
           maxHeight={photoMaxH}
           renderScale={scale}
+          palette={palette}
         />
-        <ExifPanel exif={exif!} scale={scale} width={panelW} sign={sign} signature={signature} />
+        <ExifPanel exif={exif!} scale={scale} width={panelW} sign={sign} signature={signature} palette={palette} />
       </div>
     </AbsoluteFill>
   );
