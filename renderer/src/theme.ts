@@ -48,8 +48,16 @@ const getHexLuminance = (color: string): number | null => {
 const contrastRatio = (a: number, b: number): number =>
   (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
-const LIGHT_TEXT_LUMINANCE = getHexLuminance(PALETTES.light.text)!;
-const DARK_TEXT_LUMINANCE = getHexLuminance(PALETTES.dark.text)!;
+const requireHexLuminance = (color: string, label: string): number => {
+  const luminance = getHexLuminance(color);
+  if (luminance === null) {
+    throw new Error(`${label} 必须是 #RGB 或 #RRGGBB,收到 ${color}`);
+  }
+  return luminance;
+};
+
+const LIGHT_TEXT_LUMINANCE = requireHexLuminance(PALETTES.light.text, 'PALETTES.light.text');
+const DARK_TEXT_LUMINANCE = requireHexLuminance(PALETTES.dark.text, 'PALETTES.dark.text');
 
 /** Hex 背景选择主文字对比度更高的色板;非法 CSS 值保持旧版明色前景。 */
 export const getPalette = (background: string): Palette => {
