@@ -19,6 +19,16 @@ test('default and EXIF variants use separate output names', () => {
   assert.equal(path.basename(resolveJobs(photo, null, true, true).jobs[0].outPath), 'IMG-exif-sign.png');
 });
 
+test('dark variants append a final suffix for every EXIF/sign combination', () => {
+  const dir = fixture();
+  const photo = path.join(dir, 'IMG.jpg');
+  fs.writeFileSync(photo, 'x');
+  assert.equal(path.basename(resolveJobs(photo, null, false, false, true).jobs[0].outPath), 'IMG-dark.png');
+  assert.equal(path.basename(resolveJobs(photo, null, true, false, true).jobs[0].outPath), 'IMG-exif-dark.png');
+  assert.equal(path.basename(resolveJobs(photo, null, false, true, true).jobs[0].outPath), 'IMG-sign-dark.png');
+  assert.equal(path.basename(resolveJobs(photo, null, true, true, true).jobs[0].outPath), 'IMG-exif-sign-dark.png');
+});
+
 test('single-file non-PNG output extension is rejected', () => {
   const dir = fixture();
   const photo = path.join(dir, 'IMG.jpg');

@@ -39,12 +39,13 @@ export const normalizeDroppedPath = (input) => {
 export const isYes = (answer) => /^y(es)?$/i.test(String(answer ?? '').trim());
 
 /** 由菜单选择组装 argv,与命令行同一语义;未知选择返回 null。 */
-export const buildArgvFromChoices = ({choice, target, exif = false, sign = false}) => {
+export const buildArgvFromChoices = ({choice, target, exif = false, sign = false, dark = false}) => {
   if (choice === '1') return [target];
   if (choice === '2') {
     const argv = ['still', target];
     if (exif) argv.push('--exif');
     if (sign) argv.push('--sign');
+    if (dark) argv.push('--dark');
     return argv;
   }
   if (choice === '3') return ['lyrics', target];
@@ -97,15 +98,17 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
 
     let exif = false;
     let sign = false;
+    let dark = false;
     if (item.key === '2') {
       exif = isYes(await ask('叠加 EXIF 展签?[y/N] '));
       sign = isYes(await ask('加入签名落款?[y/N] '));
+      dark = isYes(await ask('黑色背景?[y/N] '));
     }
 
-    const argv = buildArgvFromChoices({choice: item.key, target, exif, sign});
+    const argv = buildArgvFromChoices({choice: item.key, target, exif, sign, dark});
     term.detail(`等效命令: ${formatEquivalentCommand(argv)}`);
     if (item.key !== '4') {
-      term.detail('进阶配置(分辨率/过渡/字幕…)见素材夹 tsuzuri.toml,参考 docs/config.md');
+      term.detail('进阶配置(分辨率/过渡/字幕/背景…)见素材夹 tsuzuri.toml,参考 docs/config.md');
     }
     return argv;
   } finally {

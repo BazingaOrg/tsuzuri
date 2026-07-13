@@ -60,6 +60,7 @@ test('a leading `still` token routes to the still command with defaults', () => 
     output: null,
     exif: false,
     sign: false,
+    dark: false,
     skipExisting: false,
     scale: 2,
   });
@@ -72,6 +73,7 @@ test('still accepts -o, --exif, and --scale', () => {
     output: 'out',
     exif: true,
     sign: false,
+    dark: false,
     skipExisting: false,
     scale: 3,
   });
@@ -81,6 +83,20 @@ test('still accepts signature and explicit resume flags', () => {
   const parsed = parseArgs(['still', './photos', '--sign', '--skip-existing']);
   assert.equal(parsed.sign, true);
   assert.equal(parsed.skipExisting, true);
+});
+
+test('still accepts --dark alongside the other variant flags', () => {
+  const parsed = parseArgs(['still', './photos', '--exif', '--sign', '--dark']);
+  assert.equal(parsed.exif, true);
+  assert.equal(parsed.sign, true);
+  assert.equal(parsed.dark, true);
+});
+
+test('still rejects unknown flags when --dark is present', () => {
+  assert.throws(
+    () => parseArgs(['still', './photos', '--dark', '--sepia']),
+    /未知参数: --sepia/,
+  );
 });
 
 test('still --scale must be integer 1–4', () => {

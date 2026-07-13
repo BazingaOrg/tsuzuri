@@ -71,8 +71,8 @@ const listPhotosInFolder = (folder) => {
     .map((f) => path.join(folder, f));
 };
 
-export const resolveJobs = (target, output, exif = false, sign = false) => {
-  const variantSuffix = exif && sign ? '-exif-sign' : exif ? '-exif' : sign ? '-sign' : '';
+export const resolveJobs = (target, output, exif = false, sign = false, dark = false) => {
+  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}`;
   const resolved = path.resolve(target);
   if (!fs.existsSync(resolved)) {
     throw new CliError(`找不到路径: ${resolved}`);
@@ -148,7 +148,7 @@ export const resolveJobs = (target, output, exif = false, sign = false) => {
 };
 
 /**
- * @param {{target: string, output: string | null, exif: boolean, sign: boolean, skipExisting: boolean, scale: number}} opts
+ * @param {{target: string, output: string | null, exif: boolean, sign: boolean, dark: boolean, skipExisting: boolean, scale: number}} opts
  */
 export const runStill = async (opts) => {
   const rendererPackage = path.join(RENDERER, 'node_modules', '@remotion', 'renderer');
@@ -156,8 +156,9 @@ export const runStill = async (opts) => {
     throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
   }
 
-  const {publicDir, canvasFolder, jobs} = resolveJobs(opts.target, opts.output, opts.exif, opts.sign);
+  const {publicDir, canvasFolder, jobs} = resolveJobs(opts.target, opts.output, opts.exif, opts.sign, opts.dark);
   const canvas = loadStillCanvasConfig(canvasFolder);
+  if (opts.dark) canvas.background = '#000000';
   const {renderStill, selectComposition} = loadRemotionRenderer();
   const progress = createPercentProgress();
   let cleanup = () => {};
@@ -165,7 +166,7 @@ export const runStill = async (opts) => {
   let skippedExif = 0;
   let rendered = 0;
 
-  term.start(`导出 still(${jobs.length} 张, scale=${opts.scale}${opts.exif ? ', EXIF' : ''}${opts.sign ? ', 签名' : ''})`);
+  term.start(`导出 still(${jobs.length} 张, scale=${opts.scale}${opts.exif ? ', EXIF' : ''}${opts.sign ? ', 签名' : ''}${opts.dark ? ', 黑底' : ''})`);
 
   try {
     const bundled = await bundleRenderer(publicDir, {

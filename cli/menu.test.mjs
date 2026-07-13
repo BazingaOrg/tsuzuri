@@ -38,6 +38,11 @@ test('buildArgvFromChoices maps each menu entry onto CLI argv', () => {
     '--sign',
   ]);
   assert.deepEqual(buildArgvFromChoices({choice: '2', target: './p'}), ['still', './p']);
+  assert.deepEqual(buildArgvFromChoices({choice: '2', target: './p', dark: true}), [
+    'still',
+    './p',
+    '--dark',
+  ]);
   assert.deepEqual(buildArgvFromChoices({choice: '3', target: './trip'}), ['lyrics', './trip']);
   assert.deepEqual(buildArgvFromChoices({choice: '4'}), ['doctor']);
   assert.equal(buildArgvFromChoices({choice: '9'}), null);
@@ -45,6 +50,10 @@ test('buildArgvFromChoices maps each menu entry onto CLI argv', () => {
 
 test('formatEquivalentCommand quotes arguments containing spaces', () => {
   assert.equal(formatEquivalentCommand(['still', './p', '--exif']), 'tsuzuri still ./p --exif');
+  assert.equal(
+    formatEquivalentCommand(['still', './p', '--exif', '--sign', '--dark']),
+    'tsuzuri still ./p --exif --sign --dark',
+  );
   assert.equal(
     formatEquivalentCommand(['still', '/Users/me/My Photos']),
     'tsuzuri still "/Users/me/My Photos"',
