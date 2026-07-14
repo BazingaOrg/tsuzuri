@@ -85,9 +85,12 @@ node cli/tsuzuri.mjs fetch ./osaka-trip
 ```
 
 1. When audio is missing, enter a video URL you are entitled to use, or choose from five yt-dlp search results.
-2. Confirm the song title and artist after download; tsuzuri names it `Song - Artist.ext`. Replacing existing audio requires confirmation.
-3. [LRCLIB](https://lrclib.net) searches synced lyrics using the song metadata and audio duration; candidates more than three seconds away are flagged.
-4. Preview the timestamped lyrics before saving `.lrc`; Chinese is converted to Simplified Chinese when applicable, while English and Japanese stay unchanged.
+2. If the folder has multiple audio files, choose one to keep. The others are deleted only after confirmation; cancelling changes nothing.
+3. Confirm the song title and artist after download; tsuzuri names it `Song - Artist.ext`. Replacing existing audio requires confirmation.
+4. [LRCLIB](https://lrclib.net) searches synced lyrics using the song metadata and audio duration; candidates more than three seconds away are flagged.
+5. Preview the timestamped lyrics before saving `.lrc`; Chinese is converted to Simplified Chinese when applicable, while English and Japanese stay unchanged.
+
+In interactive lists, enter a number to select. Where a back option is shown, use `0` to go back; press Enter to abandon the current subflow. Destructive actions such as replacement or deletion default to no.
 
 Audio download requires a [yt-dlp](https://github.com/yt-dlp/yt-dlp) you install yourself
 (`brew install yt-dlp` on macOS); `fetch` checks it only when download is used. Existing lyrics are never
