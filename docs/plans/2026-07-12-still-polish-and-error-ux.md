@@ -1,6 +1,6 @@
 # 执行方案:报错文案人性化 + still 命名/覆盖语义 + still 签名与 EXIF 展示优化
 
-> 状态:已实施(2026-07-12)。承接 branding-and-still-export-plan.md 的实现,
+> 状态:已实施(2026-07-12)。承接 2026-07-12-branding-and-still-export.md 的实现,
 > 含该实现 code review 的待修项。不含代码,只定方案与步骤。
 
 ## 零、Review 待修项(来自本轮 code review)
@@ -239,7 +239,7 @@ ISO 200
     loadStillCanvasConfig,注意 R5 的平铺约束)传给 props;自定义 SVG 复用
     useSignatureData(fetch + delayRender 在 still 渲染同样生效)。
 13. **文档**:README 两语版 still 一节、config.md、tsuzuri-status.md 更新;
-    docs/branding-and-still-export-plan.md 标注被本方案取代的段落。
+    docs/plans/2026-07-12-branding-and-still-export.md 标注被本方案取代的段落。
 
 ---
 

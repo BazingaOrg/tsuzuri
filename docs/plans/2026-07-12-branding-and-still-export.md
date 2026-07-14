@@ -1,6 +1,6 @@
 # 执行方案:片头/片尾个性化 + still 图片导出命令
 
-> 状态:已实施(2026-07-12)。后续命名、报错与视觉打磨由 [still-polish-and-error-ux-plan.md](./still-polish-and-error-ux-plan.md) 取代。
+> 状态:已实施(2026-07-12)。后续命名、报错与视觉打磨由 [2026-07-12-still-polish-and-error-ux.md](./2026-07-12-still-polish-and-error-ux.md) 取代。
 
 > 最终实现口径:本文件保留方案推导过程;对外行为以 README、config.md 与后续打磨方案为准。plan 只把用户显式设置的 branding 键写入 timeline,默认文案留在渲染器;still 最终增加 `--sign` / `--skip-existing`,四种变体使用 `-exif` / `-sign` 文件名段并保留单一 `.png` 扩展名。
 
