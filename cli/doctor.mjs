@@ -61,9 +61,9 @@ const rendererCheck = (repo) => {
 const reportYtDlp = () => {
   const r = spawnSync('yt-dlp', ['--version'], {encoding: 'utf8'});
   if (!r.error && r.status === 0) {
-    term.success(`yt-dlp ${(r.stdout ?? '').trim()}(可选,fetch 下载音频用)`);
+    term.success(`yt-dlp v${(r.stdout ?? '').trim()}`);
   } else {
-    term.info('yt-dlp 未安装(可选,fetch 下载音频时才需要)');
+    term.info('yt-dlp 未安装(可选,仅在 fetch 下载音频时需要)');
     term.detail(FIXES['yt-dlp']);
   }
 };
