@@ -18,13 +18,40 @@ from pathlib import Path
 
 import librosa
 import numpy as np
+import soundfile as sf
 
 import term
 from lyrics_input import LrcError, parse_lrc
 
 
+def load_audio(audio_path: Path) -> tuple[np.ndarray, int]:
+    """读取单声道音频;soundfile 不支持的容器先由 FFmpeg 解为临时 WAV。"""
+    try:
+        samples, sr = sf.read(str(audio_path), dtype="float32", always_2d=True)
+    except sf.SoundFileError:
+        with tempfile.TemporaryDirectory(prefix="tsuzuri-audio-") as tmp:
+            decoded = Path(tmp) / "decoded.wav"
+            try:
+                result = subprocess.run(
+                    [
+                        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                        "-i", str(audio_path), "-vn", "-ac", "1",
+                        "-c:a", "pcm_f32le", str(decoded),
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+            except FileNotFoundError as exc:
+                raise RuntimeError("找不到 FFmpeg,无法解码此音频格式") from exc
+            if result.returncode != 0:
+                detail = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "未知错误"
+                raise RuntimeError(f"FFmpeg 音频解码失败:{detail}")
+            samples, sr = sf.read(str(decoded), dtype="float32", always_2d=True)
+    return np.mean(samples, axis=1, dtype=np.float32), int(sr)
+
+
 def analyze_beats(audio_path: Path) -> dict:
-    y, sr = librosa.load(str(audio_path), sr=None, mono=True)
+    y, sr = load_audio(audio_path)
     duration = float(librosa.get_duration(y=y, sr=sr))
 
     tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, units="frames")
@@ -69,10 +96,13 @@ KNOWN_LANGS = {"ja", "zh", "en"}
 
 
 def _demucs_enabled(audio_path: Path) -> bool:
-    toml_path = audio_path.parent / "tsuzuri.toml"
-    if toml_path.is_file():
-        with toml_path.open("rb") as f:
-            return bool(tomllib.load(f).get("demucs", True))
+    candidates = [audio_path.parent / "tsuzuri.toml"]
+    if audio_path.parent.name == "audio":
+        candidates.append(audio_path.parent.parent / "tsuzuri.toml")
+    for toml_path in candidates:
+        if toml_path.is_file():
+            with toml_path.open("rb") as f:
+                return bool(tomllib.load(f).get("demucs", True))
     return True
 
 
@@ -168,12 +198,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.lyrics_only:
-        duration = float(librosa.get_duration(path=str(args.audio)))
+        samples, sr = load_audio(args.audio)
+        duration = float(librosa.get_duration(y=samples, sr=sr))
         lyrics_out = args.lyrics_output or args.audio.parent / "metadata" / "lyrics.json"
     else:
         result = analyze_beats(args.audio)
         duration = float(result["duration"])
         out = args.output or args.audio.parent / "metadata" / "beats.json"
+        project_root = out.parent.parent
+        try:
+            result["audio"] = args.audio.resolve().relative_to(project_root.resolve()).as_posix()
+        except ValueError:
+            result["audio"] = args.audio.name
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         term.detail(

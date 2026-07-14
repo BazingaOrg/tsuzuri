@@ -45,7 +45,7 @@ def test_lyrics_only_with_lrc_writes_lyrics_json_and_skips_beats(tmp_path: Path)
     assert [s["text"] for s in result["segments"]] == ["Hello", "World"]
     assert result["segments"][0]["start"] == 0.0
     assert result["segments"][1]["start"] == 1.0
-    # 末尾片段应延伸到音频时长(通过 librosa.get_duration 获取,而非节拍分析)
+    # 末尾片段应延伸到音频时长(直接读取采样获取,而非节拍分析)
     assert result["segments"][1]["end"] == 2.0
 
 
