@@ -5,10 +5,11 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
-  acceptsDefaultYes,
   buildAudioFilename,
   buildLyricsQuery,
+  buildNextStepMessage,
   checkYtDlp,
+  chooseSingleAudio,
   detectLyricsScript,
   downloadWithYtDlp,
   durationDelta,
@@ -17,7 +18,6 @@ import {
   formatLrcPreview,
   formatLyricsCandidate,
   installDownloadedAudio,
-  isNo,
   parseCurlResponse,
   parseLrc,
   parseSearchLine,
@@ -236,13 +236,56 @@ test('planOffers only proposes what the folder is missing', () => {
   assert.deepEqual(planOffers({audios: ['a.mp3', 'b.mp3'], lyrics: []}), {offerAudio: false, offerLyrics: false});
 });
 
-test('isNo / acceptsDefaultYes encode the two enter-key defaults', () => {
-  assert.equal(isNo(''), true);
-  assert.equal(isNo('y'), false);
-  assert.equal(acceptsDefaultYes(''), true);
-  assert.equal(acceptsDefaultYes('n'), false);
-  assert.equal(acceptsDefaultYes('No'), false);
-  assert.equal(acceptsDefaultYes('yes'), true);
+test('next-step guidance follows the final material state', () => {
+  assert.equal(
+    buildNextStepMessage('/my trip', {photos: ['a.jpg'], audios: ['song.m4a']}),
+    '下一步:可运行 node cli/tsuzuri.mjs "/my trip" 渲染',
+  );
+  assert.equal(
+    buildNextStepMessage('/trip', {photos: [], audios: ['song.m4a']}),
+    '下一步:先把照片放入素材文件夹',
+  );
+  assert.equal(buildNextStepMessage('/trip', {photos: ['a.jpg'], audios: []}), null);
+});
+
+test('multiple-audio cleanup deletes only after dangerous confirmation', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  for (const name of ['a.mp3', 'b.m4a']) fs.writeFileSync(path.join(folder, name), name);
+  try {
+    const calls = [];
+    const result = await chooseSingleAudio({
+      pick: async (text, items, options) => {
+        calls.push({text, items, options});
+        return {index: 1, item: items[1]};
+      },
+      confirm: async (text, options) => {
+        calls.push({text, options});
+        return true;
+      },
+    }, folder, ['a.mp3', 'b.m4a']);
+    assert.deepEqual(result, ['b.m4a']);
+    assert.deepEqual(fs.readdirSync(folder), ['b.m4a']);
+    assert.deepEqual(calls[0], {
+      text: '文件夹里有多个音频,选择要保留的一个',
+      items: ['a.mp3', 'b.m4a'],
+      options: {allowBack: false},
+    });
+    assert.deepEqual(calls[1].options, {dangerous: true});
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
+});
+
+test('multiple-audio cleanup abandon leaves files untouched', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  for (const name of ['a.mp3', 'b.m4a']) fs.writeFileSync(path.join(folder, name), name);
+  try {
+    const result = await chooseSingleAudio({pick: async () => null}, folder, ['a.mp3', 'b.m4a']);
+    assert.deepEqual(result, ['a.mp3', 'b.m4a']);
+    assert.deepEqual(fs.readdirSync(folder).sort(), ['a.mp3', 'b.m4a']);
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
 });
 
 test('parseCurlResponse splits body from the trailing status code', () => {

@@ -11,11 +11,11 @@ import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import readline from 'node:readline';
 
 import {CliError} from './options.mjs';
 import {FIXES} from './dependencies.mjs';
-import {isYes} from './menu.mjs';
+import {formatEquivalentCommand} from './menu.mjs';
+import {PICK_BACK, withPrompts} from './prompts.mjs';
 import {scanFolderLoose} from './project.mjs';
 import {term} from './term.mjs';
 
@@ -30,12 +30,6 @@ const PREVIEW_LINES = 12;
 // ---------------------------------------------------------------------------
 // 纯逻辑(fetch.test.mjs 覆盖)
 // ---------------------------------------------------------------------------
-
-/** 回车=否(用于有破坏性的确认,如覆盖已有文件)。 */
-export const isNo = (answer) => !isYes(answer);
-
-/** 回车=是(用于无害的建议步骤,如搜索歌词)。 */
-export const acceptsDefaultYes = (answer) => !/^n(o)?$/i.test(String(answer ?? '').trim());
 
 export const formatDuration = (totalSeconds) => {
   if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '?:??';
@@ -342,28 +336,6 @@ const NETWORK_HINT = '检查网络是否可达 lrclib.net(请求经 curl 发出,
 // 交互层
 // ---------------------------------------------------------------------------
 
-// 与 menu.mjs 同一套约定:SIGINT/输入流中途关闭(Ctrl+D)都按用户放弃退出,
-// 否则挂起的 rl.question 会让顶层 await 永远不结算
-const withReadline = async (fn, {input, output}) => {
-  const rl = readline.createInterface({input, output});
-  let finished = false;
-  const abort = () => {
-    output.write('\n');
-    process.exit(130);
-  };
-  rl.on('SIGINT', abort);
-  rl.on('close', () => {
-    if (!finished) abort();
-  });
-  const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
-  try {
-    return await fn(ask);
-  } finally {
-    finished = true;
-    rl.close();
-  }
-};
-
 /** 音频下载子流程;成功时返回用户确认的文件名/歌曲信息。 */
 const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
   const ytdlp = checkYtDlp();
@@ -374,7 +346,7 @@ const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
   }
 
   for (;;) {
-    const input = (await ask('粘贴歌曲 URL,或输入歌名搜索(回车跳过): ')).trim();
+    const input = await ask.line('粘贴歌曲 URL,或输入歌名搜索(回车跳过)');
     if (!input) return false;
 
     let url = null;
@@ -387,21 +359,20 @@ const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
         term.error('搜索失败');
         if (search.stderr) term.detail(search.stderr.split('\n').slice(-3).join('\n'));
         term.detail('常见原因:网络需要代理、yt-dlp 版本过旧(yt-dlp -U 可更新)');
-        if (isNo(await ask('换个关键词再试? [y/N,回车=否] '))) return false;
+        if (!(await ask.confirm('换个关键词再试?', {defaultValue: false}))) return false;
         continue;
       }
       if (search.candidates.length === 0) {
         term.warn(`没有找到「${input}」,换个关键词试试,或手动放入音频文件`);
         continue;
       }
-      for (const [i, c] of search.candidates.entries()) {
-        out.write(`  ${i + 1}. ${c.title} | ${c.duration} | ${c.uploader}\n`);
-      }
-      const choice = (await ask(`选择序号 [1-${search.candidates.length}] 下载,0 换关键词,回车取消: `)).trim();
-      if (!choice) return false;
-      if (choice === '0') continue;
-      const picked = search.candidates[Number(choice) - 1];
-      if (!picked) continue;
+      const choice = await ask.pick(
+        '选择要下载的结果',
+        search.candidates.map((c) => `${c.title} | ${c.duration} | ${c.uploader}`),
+      );
+      if (choice === null) return false;
+      if (choice === PICK_BACK) continue;
+      const picked = search.candidates[choice.index];
       url = `https://www.youtube.com/watch?v=${picked.id}`;
     }
 
@@ -410,7 +381,7 @@ const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
     if (!result.ok) {
       term.error('下载失败(具体原因见上方 yt-dlp 输出)');
       term.detail('常见原因:网络需要代理、视频地区受限或已下架;可换一个结果或 URL');
-      if (isNo(await ask('再试一次(可换关键词/URL)? [y/N,回车=否] '))) return false;
+      if (!(await ask.confirm('再试一次(可换关键词/URL)?', {defaultValue: false}))) return false;
       continue;
     }
 
@@ -423,20 +394,20 @@ const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
       const suggestedArtist = sanitizeFilePart(probe.artist || '');
 
       for (;;) {
-        const titleInput = (await ask(`歌曲名 [${suggestedTitle}]: `)).trim();
-        const title = sanitizeFilePart(titleInput || suggestedTitle);
+        const titleInput = await ask.line('歌曲名', {defaultValue: suggestedTitle});
+        const title = sanitizeFilePart(titleInput);
         if (!title) {
           term.warn('歌曲名不能为空');
           continue;
         }
-        const artistPrompt = suggestedArtist
-          ? `歌手 [${suggestedArtist},输入 0 留空]: `
-          : '歌手(可留空): ';
-        const artistInput = (await ask(artistPrompt)).trim();
+        const artistPrompt = suggestedArtist ? '歌手(输入 0 留空)' : '歌手(可留空)';
+        const artistInput = await ask.line(artistPrompt, {
+          defaultValue: suggestedArtist || undefined,
+        });
         const artist = artistInput === '0' ? '' : sanitizeFilePart(artistInput || suggestedArtist);
         const filename = buildAudioFilename({title, artist, ext: path.extname(result.audio)});
         out.write(`  将保存为: ${filename}\n`);
-        if (!acceptsDefaultYes(await ask('歌曲信息和文件名正确吗? [Y/n,回车=是] '))) continue;
+        if (!(await ask.confirm('歌曲信息和文件名正确吗?'))) continue;
 
         const destination = path.join(folder, filename);
         const sameAsExisting = existing && path.resolve(destination) === path.resolve(path.join(folder, existing));
@@ -472,9 +443,8 @@ const lyricsFlow = async (
   let query = defaultQuery;
   let queryCustomized = false;
   for (;;) {
-    const input = (await ask(`按「${query}」搜索歌词,回车确认或输入新关键词(输 0 放弃): `)).trim();
-    if (input === '0') return false;
-    if (input) {
+    const input = await ask.line('歌词搜索关键词', {defaultValue: query});
+    if (input !== query) {
       query = input;
       queryCustomized = true;
     }
@@ -498,25 +468,24 @@ const lyricsFlow = async (
     const synced = filterSyncedRecords(records).slice(0, SEARCH_LIMIT);
     if (synced.length === 0) {
       term.warn(`未找到「${query}」的同步歌词`);
-      if (isNo(await ask('换个关键词再搜? [y/N,回车=否] '))) return false;
+      if (!(await ask.confirm('换个关键词再搜?', {defaultValue: false}))) return false;
       continue;
     }
 
-    for (const [i, r] of synced.entries()) {
-      out.write(`  ${i + 1}. ${formatLyricsCandidate(r, probe.duration)}\n`);
-    }
-    const choice = (await ask(`选择序号 [1-${synced.length}] 预览,0 换关键词,回车放弃: `)).trim();
-    if (!choice) return false;
-    if (choice === '0') continue;
-    const picked = synced[Number(choice) - 1];
-    if (!picked) continue;
+    const choice = await ask.pick(
+      '选择要预览的歌词',
+      synced.map((record) => formatLyricsCandidate(record, probe.duration)),
+    );
+    if (choice === null) return false;
+    if (choice === PICK_BACK) continue;
+    const picked = synced[choice.index];
 
     const preferred = await preferSimplifiedChineseLrc(picked.syncedLyrics);
     if (preferred.converted) term.info('中文歌词已转为简体,以下为最终保存预览');
     const entries = parseLrc(preferred.lyrics);
     for (const line of formatLrcPreview(entries)) out.write(`  ${line}\n`);
     const lrcName = `${path.basename(audio, path.extname(audio))}.lrc`;
-    if (!acceptsDefaultYes(await ask(`歌词看起来对吗?保存为 ${lrcName}? [Y/n,回车=是] `))) continue;
+    if (!(await ask.confirm(`歌词看起来对吗?保存为 ${lrcName}?`))) continue;
 
     fs.writeFileSync(path.join(folder, lrcName), preferred.lyrics, 'utf8');
     if (existingLrc && existingLrc !== lrcName) fs.rmSync(path.join(folder, existingLrc), {force: true});
@@ -534,6 +503,33 @@ const resolveFolder = (folderArg) => {
   return folder;
 };
 
+export const buildNextStepMessage = (folder, {photos, audios}) => {
+  if (photos.length === 0) return '下一步:先把照片放入素材文件夹';
+  if (audios.length === 1) {
+    return `下一步:可运行 ${formatEquivalentCommand([folder])} 渲染`;
+  }
+  return null;
+};
+
+export const chooseSingleAudio = async (ask, folder, audios) => {
+  const choice = await ask.pick('文件夹里有多个音频,选择要保留的一个', audios, {
+    allowBack: false,
+  });
+  if (choice === null || choice === PICK_BACK) {
+    term.warn('未选择保留项,请手动清理到一个音频;未改动任何文件');
+    return audios;
+  }
+  const keep = audios[choice.index];
+  const remove = audios.filter((audio) => audio !== keep);
+  if (!(await ask.confirm(`保留 ${keep},删除其余 ${remove.length} 个音频?`, {dangerous: true}))) {
+    term.warn('已取消删除,请手动清理到一个音频;未改动任何文件');
+    return audios;
+  }
+  for (const audio of remove) fs.rmSync(path.join(folder, audio));
+  term.success(`已保留唯一音频: ${keep}`);
+  return [keep];
+};
+
 /** `tsuzuri fetch <folder>`:显式备料入口,任何状态可进,覆盖需确认。 */
 export const runFetch = async (folderArg, {input = process.stdin, output = process.stdout} = {}) => {
   if (input === process.stdin && (!process.stdin.isTTY || !process.stdout.isTTY)) {
@@ -541,7 +537,7 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
   }
   const folder = resolveFolder(folderArg);
 
-  await withReadline(async (ask) => {
+  await withPrompts(async (ask) => {
     let {audios, lyrics} = scanFolderLoose(folder);
     let downloadedInfo = null;
     term.info(
@@ -549,15 +545,15 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
     );
 
     if (audios.length > 1) {
-      term.warn('文件夹里有多个音频,请先手动清理到一个,跳过音频下载');
+      audios = await chooseSingleAudio(ask, folder, audios);
     } else if (audios.length === 1) {
-      if (isYes(await ask(`已有 ${audios[0]},重新下载并替换? [y/N,回车=否] `))) {
+      if (await ask.confirm(`已有 ${audios[0]},重新下载并替换?`, {dangerous: true})) {
         downloadedInfo = await audioFlow(ask, output, folder, {existing: audios[0]});
         if (downloadedInfo && lyrics.length > 0) {
           term.warn('音频已更换,现有 .lrc 时间轴可能不再匹配,建议重新搜索歌词');
         }
       }
-    } else if (acceptsDefaultYes(await ask('文件夹里没有音频,现在下载? [Y/n,回车=是] '))) {
+    } else if (await ask.confirm('文件夹里没有音频,现在下载?')) {
       downloadedInfo = await audioFlow(ask, output, folder);
     }
 
@@ -567,20 +563,22 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
       return;
     }
     if (lyrics.length > 0) {
-      if (isYes(await ask(`已有 ${lyrics[0]},重新搜索并替换? [y/N,回车=否] `))) {
+      if (await ask.confirm(`已有 ${lyrics[0]},重新搜索并替换?`, {dangerous: true})) {
         await lyricsFlow(ask, output, folder, audios[0], {
           existingLrc: lyrics[0],
           confirmedTitle: downloadedInfo?.title,
           confirmedArtist: downloadedInfo?.artist,
         });
       }
-    } else if (acceptsDefaultYes(await ask('没有 .lrc,在线搜索同步歌词? [Y/n,回车=是] '))) {
+    } else if (await ask.confirm('没有 .lrc,在线搜索同步歌词?')) {
       const saved = await lyricsFlow(ask, output, folder, audios[0], {
         confirmedTitle: downloadedInfo?.title,
         confirmedArtist: downloadedInfo?.artist,
       });
       if (!saved) term.info('未保存歌词,渲染时将用本地 Whisper 识别;之后也可手动放入 .lrc');
     }
+    const nextStep = buildNextStepMessage(folder, scanFolderLoose(folder));
+    if (nextStep) term.info(nextStep);
   }, {input, output});
   return 0;
 };
@@ -594,17 +592,20 @@ export const offerFetch = async (folder, {input = process.stdin, output = proces
   const {offerAudio, offerLyrics} = planOffers(scanFolderLoose(folder));
   if (!offerAudio && !offerLyrics) return;
 
-  await withReadline(async (ask) => {
+  await withPrompts(async (ask) => {
     let downloadedInfo = null;
     if (offerAudio) {
       term.info('文件夹里没有音频');
-      if (isNo(await ask('用 yt-dlp 搜索下载一个? [y/N,回车=否] '))) return;
+      if (!(await ask.confirm('用 yt-dlp 搜索下载一个?', {defaultValue: false}))) {
+        term.info(`之后可运行 ${formatEquivalentCommand(['fetch', folder])} 补齐`);
+        return;
+      }
       downloadedInfo = await audioFlow(ask, output, folder);
       if (!downloadedInfo) return;
     }
     const {audios, lyrics} = scanFolderLoose(folder);
     if (audios.length === 1 && lyrics.length === 0) {
-      if (acceptsDefaultYes(await ask('没有 .lrc,先在线搜索同步歌词吗?搜不到会用本地 Whisper [Y/n,回车=是] '))) {
+      if (await ask.confirm('没有 .lrc,先在线搜索同步歌词吗?搜不到会用本地 Whisper')) {
         const saved = await lyricsFlow(ask, output, folder, audios[0], {
           confirmedTitle: downloadedInfo?.title,
           confirmedArtist: downloadedInfo?.artist,

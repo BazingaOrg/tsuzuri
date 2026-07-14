@@ -1,13 +1,37 @@
 import assert from 'node:assert/strict';
 import os from 'node:os';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import {
   buildArgvFromChoices,
   formatEquivalentCommand,
-  isYes,
   normalizeDroppedPath,
+  runMenu,
 } from './menu.mjs';
+
+const interact = async ({lines, confirms = []}) => {
+  let text = '';
+  const output = {write: (chunk) => { text += chunk; }};
+  const confirmCalls = [];
+  const promptRunner = (fn) => fn({
+    line: async (_prompt, options = {}) => {
+      for (;;) {
+        const value = lines.shift();
+        const valid = options.validate ? await options.validate(value) : true;
+        if (valid === true || valid === undefined) return value;
+        text += `${valid}\n`;
+      }
+    },
+    confirm: async (prompt, options = {}) => {
+      confirmCalls.push({prompt, options});
+      return confirms.shift();
+    },
+  });
+  const result = await runMenu({output, promptRunner});
+  return {result, output: text, confirmCalls};
+};
 
 test('normalizeDroppedPath unescapes macOS drag-and-drop sequences', () => {
   assert.equal(normalizeDroppedPath('/Users/me/My\\ Photos'), '/Users/me/My Photos');
@@ -64,10 +88,45 @@ test('formatEquivalentCommand quotes arguments containing spaces', () => {
   );
 });
 
-test('isYes accepts y/yes case-insensitively and defaults to no', () => {
-  assert.equal(isYes('y'), true);
-  assert.equal(isYes('YES'), true);
-  assert.equal(isYes(''), false);
-  assert.equal(isYes('n'), false);
-  assert.equal(isYes(undefined), false);
+test('runMenu reports invalid choices and q exits cleanly', async () => {
+  const {result, output} = await interact({lines: ['9', 'q']});
+  assert.equal(result, null);
+  assert.match(output, /无效选择,请输入 1-5/);
+  assert.match(output, /再见/);
+});
+
+test('runMenu repeats missing and wrong-type folder paths', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-menu-test-'));
+  const file = path.join(root, 'photo.jpg');
+  fs.writeFileSync(file, 'photo');
+  try {
+    const {result, output} = await interact({
+      lines: ['1', path.join(root, 'missing'), file, root],
+    });
+    assert.deepEqual(result, [root]);
+    assert.match(output, /找不到路径:/);
+    assert.match(output, /不是文件夹:/);
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+});
+
+test('still accepts a file path and defaults presentation choices to off', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-menu-test-'));
+  const file = path.join(root, 'photo.jpg');
+  fs.writeFileSync(file, 'photo');
+  try {
+    const {result, confirmCalls} = await interact({
+      lines: ['2', file],
+      confirms: [false, false, false],
+    });
+    assert.deepEqual(result, ['still', file]);
+    assert.deepEqual(confirmCalls.map((call) => call.options), [
+      {defaultValue: false},
+      {defaultValue: false},
+      {defaultValue: false},
+    ]);
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
 });

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {CliError} from './options.mjs';
+import {formatEquivalentCommand} from './menu.mjs';
 
 const LEGACY_JSON = ['beats.json', 'lyrics.json', 'timeline.json'];
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
@@ -36,7 +37,10 @@ export const scanFolder = (folder, {requirePhotos = true} = {}) => {
   const {photos, audios, lyrics, videos} = scanFolderLoose(folder);
   if (audios.length > 1) throw new CliError(`文件夹里有多个音频,只能有一个:\n${audios.join('\n')}`);
   if (audios.length === 0) {
-    throw new CliError(`没有找到音频文件。目录约定:照片 + 唯一的音频文件(${[...AUDIO_EXTS].join(' ')})`);
+    throw new CliError(
+      `没有找到音频文件。目录约定:照片 + 唯一的音频文件(${[...AUDIO_EXTS].join(' ')})` +
+      `\n└ 可运行 ${formatEquivalentCommand(['fetch', folder])} 补齐`,
+    );
   }
   if (requirePhotos && photos.length === 0) {
     throw new CliError(`没有找到图片。目录约定:照片(${[...IMAGE_EXTS].join(' ')})+ 唯一的音频文件`);

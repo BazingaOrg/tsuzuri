@@ -5,8 +5,9 @@
  */
 
 import os from 'node:os';
-import readline from 'node:readline';
+import fs from 'node:fs';
 
+import {withPrompts} from './prompts.mjs';
 import {term} from './term.mjs';
 
 export const MENU_ITEMS = [
@@ -37,8 +38,6 @@ export const normalizeDroppedPath = (input) => {
   return s;
 };
 
-export const isYes = (answer) => /^y(es)?$/i.test(String(answer ?? '').trim());
-
 /** 由菜单选择组装 argv,与命令行同一语义;未知选择返回 null。 */
 export const buildArgvFromChoices = ({choice, target, exif = false, sign = false, dark = false}) => {
   if (choice === '1') return [target];
@@ -62,23 +61,12 @@ export const formatEquivalentCommand = (argv) =>
   ['node', 'cli/tsuzuri.mjs', ...argv.map(quoteArg)].join(' ');
 
 /**
- * 交互层:问答收集选择,返回 argv 数组。Windows 上 readline 接管 stdin 后
- * Ctrl+C 经由 rl 的 SIGINT 事件而非进程信号,必须在 rl 上监听才能退出。
+ * 交互层:问答收集选择,返回 argv 数组;q 退出时返回 null。
  */
-export const runMenu = async ({input = process.stdin, output = process.stdout} = {}) => {
-  const rl = readline.createInterface({input, output});
-  let finished = false;
-  const abort = () => {
-    output.write('\n');
-    process.exit(130);
-  };
-  rl.on('SIGINT', abort);
-  rl.on('close', () => {
-    if (!finished) abort();
-  });
-  const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
-
-  try {
+export const runMenu = async (
+  {input = process.stdin, output = process.stdout, promptRunner = withPrompts} = {},
+) => {
+  return promptRunner(async (ask) => {
     term.info('tsuzuri — 把照片和一首歌缀成影像日记');
     output.write('\n');
     for (const item of MENU_ITEMS) output.write(`  ${item.key}. ${item.label}\n`);
@@ -86,28 +74,39 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
 
     let item;
     for (;;) {
-      const choice = (await ask(`输入序号 [1-${MENU_ITEMS.length}] 后回车，Ctrl+C 退出: `)).trim();
+      const choice = await ask.line(`输入序号 [1-${MENU_ITEMS.length}],或 q 退出`);
+      if (choice.toLowerCase() === 'q') {
+        output.write('再见\n');
+        return null;
+      }
       item = MENU_ITEMS.find((i) => i.key === choice);
       if (item) break;
+      output.write(`无效选择,请输入 1-${MENU_ITEMS.length}\n`);
     }
 
     let target = null;
     if (item.pathPrompt) {
-      for (;;) {
-        target = normalizeDroppedPath(
-          await ask(`输入${item.pathPrompt}路径，或拖入后回车: `),
-        );
-        if (target) break;
-      }
+      const rawTarget = await ask.line(`输入${item.pathPrompt}路径,或拖入后回车`, {
+        validate: (value) => {
+          const normalized = normalizeDroppedPath(value);
+          if (!normalized) return '路径不能为空';
+          if (!fs.existsSync(normalized)) return `找不到路径: ${normalized}`;
+          if (item.key !== '2' && !fs.statSync(normalized).isDirectory()) {
+            return `不是文件夹: ${normalized}`;
+          }
+          return true;
+        },
+      });
+      target = normalizeDroppedPath(rawTarget);
     }
 
     let exif = false;
     let sign = false;
     let dark = false;
     if (item.key === '2') {
-      exif = isYes(await ask('显示 EXIF 拍摄信息? [y/N，回车=否] '));
-      sign = isYes(await ask('加入签名落款? [y/N，回车=否] '));
-      dark = isYes(await ask('使用黑色背景（暗色展陈）? [y/N，回车=否] '));
+      exif = await ask.confirm('显示 EXIF 拍摄参数和相机信息?', {defaultValue: false});
+      sign = await ask.confirm('加入签名落款,用于作品署名?', {defaultValue: false});
+      dark = await ask.confirm('使用黑色背景,适合暗色展陈?', {defaultValue: false});
     }
 
     const argv = buildArgvFromChoices({choice: item.key, target, exif, sign, dark});
@@ -116,8 +115,5 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
       term.detail('进阶配置(分辨率/过渡/字幕/背景…)见素材夹 tsuzuri.toml,参考 docs/config.md');
     }
     return argv;
-  } finally {
-    finished = true;
-    rl.close();
-  }
+  }, {input, output});
 };

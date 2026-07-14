@@ -24,3 +24,18 @@ test('scanFolder returns an empty videos list when none are present', () => {
   const dir = makeFolder(['a.jpg', 'music.mp3']);
   assert.deepEqual(scanFolder(dir).videos, []);
 });
+
+test('missing audio error points to the fetch recovery command', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-scan-'));
+  const dir = path.join(root, 'my trip');
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, 'a.jpg'), '');
+  try {
+    assert.throws(
+      () => scanFolder(dir),
+      (error) => error.message.includes(`node cli/tsuzuri.mjs fetch "${dir}"`),
+    );
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+});

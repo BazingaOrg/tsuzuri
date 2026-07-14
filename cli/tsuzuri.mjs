@@ -82,6 +82,7 @@ const main = async () => {
   // 裸跑 + 交互终端 → 数字菜单;管道/脚本里仍走 USAGE 报错,不破坏可脚本性
   if (argv.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
     argv = await runMenu();
+    if (argv === null) return 0;
   }
   const parsed = parseArgs(argv);
   if (parsed.command === 'help') {
