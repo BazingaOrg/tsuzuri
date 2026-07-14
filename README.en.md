@@ -1,6 +1,6 @@
 # tsuzuri (綴り)
 
-> Photos + a song (+ optional lyrics) → a beat-synced visual diary. One command, fully local.
+> Photos + a song (+ optional lyrics) → a beat-synced visual diary. Local analysis and rendering, with optional online preparation.
 
 [中文](README.md) · **English**
 
@@ -24,7 +24,9 @@ osaka-trip/
 └── lyrics.lrc
 ```
 
-It should contain photos, exactly one audio file, and optionally one `.lrc`. Then run:
+When bringing your own media, include photos, exactly one audio file, and optionally one `.lrc`.
+If audio or lyrics are missing, first run `node cli/tsuzuri.mjs fetch ./osaka-trip` to fill them
+interactively. Then run:
 
 ```bash
 node cli/tsuzuri.mjs ./osaka-trip
@@ -68,13 +70,35 @@ tsuzuri automatically:
 
 Supported images are `.jpg`, `.jpeg`, `.png`, and `.webp`; supported audio files are `.mp3`, `.m4a`, `.wav`, `.flac`, `.aac`, and `.ogg`. Video clips are not supported yet.
 
+## Architecture
+
+![tsuzuri architecture: optional online preparation feeding the local analysis, planning, and dual-render pipeline](docs/assets/architecture/architecture.png)
+
+`fetch` only writes optional online material into the media folder. Once photos, audio, and LRC are
+ready, Analyze, Plan, Remotion rendering, and loudness processing all run locally. Video and still
+exports share the same canvas, typography, photo, and palette system.
+
+## Optional online preparation
+
+```bash
+node cli/tsuzuri.mjs fetch ./osaka-trip
+```
+
+1. When audio is missing, enter a video URL you are entitled to use, or choose from five yt-dlp search results.
+2. Confirm the song title and artist after download; tsuzuri names it `Song - Artist.ext`. Replacing existing audio requires confirmation.
+3. [LRCLIB](https://lrclib.net) searches synced lyrics using the song metadata and audio duration; candidates more than three seconds away are flagged.
+4. Preview the timestamped lyrics before saving `.lrc`; Chinese is converted to Simplified Chinese when applicable, while English and Japanese stay unchanged.
+
+Audio download requires a [yt-dlp](https://github.com/yt-dlp/yt-dlp) you install yourself
+(`brew install yt-dlp` on macOS); `fetch` checks it only when download is used. Existing lyrics are never
+silently overwritten. Cancelling or finding no match is not an error; local Whisper remains available.
+Only interactive terminals offer online preparation—pipes and scripts never enter the network prompts.
+
 ## Configuration and documentation
 
 Add `tsuzuri.toml` to the media folder to adjust resolution, frame rate, transitions, subtitles, background, intro, and outro.
 
 Analysis output lives under `metadata/`. When the media is unchanged, edit `metadata/timeline.json` and rerun: tsuzuri preserves the hand-edited timeline and skips repeated analysis.
-
-`fetch` is an optional online step: synced lyrics come from [LRCLIB](https://lrclib.net) (no key needed); Chinese lyrics are converted to Simplified Chinese when applicable, while English and Japanese remain unchanged, with a preview before saving as `.lrc`. Audio download relies on a [yt-dlp](https://github.com/yt-dlp/yt-dlp) you install yourself (`brew install yt-dlp`). After downloading, tsuzuri asks you to confirm the song title and artist, then uses `Song - Artist` for the filename and lyric search. Only download content you are entitled to use; skip `fetch` and everything stays local as before.
 
 Analysis and rendering stay local and require no API key. Whisper selects an Apple Silicon, NVIDIA CUDA, or CPU backend automatically; its model is downloaded only on first use.
 

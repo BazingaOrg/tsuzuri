@@ -4,22 +4,25 @@
 
 ## 当前能力
 
-tsuzuri 已具备完整的本地视频管线：读取照片、唯一音频和可选 LRC，分析节拍与歌词，生成时间线，再通过 Remotion 输出 MP4。
+tsuzuri 已具备完整的本地视频管线：读取照片、唯一音频和可选 LRC，分析节拍与歌词，生成时间线，再通过 Remotion 输出 MP4。交互终端可在管线开始前选择在线补齐音频或同步歌词，分析和渲染本身仍全部在本地完成。
 
 | 模块 | 当前行为 |
 | --- | --- |
+| 在线备料 | `fetch` 可通过 yt-dlp 下载音频、确认歌曲信息并规范命名，通过 LRCLIB 搜索和预览同步歌词；替换已有素材均需确认 |
 | 素材扫描 | 支持 JPG、PNG、WebP 和常见音频格式；视频文件会提示后忽略 |
 | 照片排序 | 全部具有 EXIF 时间时按拍摄时间，否则按文件名 |
-| 歌词 | LRC 优先，否则使用本地 Whisper；低置信度歌词在规划阶段过滤 |
+| 歌词 | LRC 优先，否则使用本地 Whisper；LRCLIB 中文歌词优先转简体，英文和日文保持原文；低置信度 Whisper 歌词在规划阶段过滤 |
 | 节奏 | 默认吸附重拍；照片密集时逐拍快闪，照片过少时在重拍处裁短歌曲 |
 | 渲染 | 静止照片、三种过渡、片头签名、片尾文案和 −14 LUFS 响度归一 |
 | 静态导出 | `still` 支持单张或批量 PNG、EXIF 展签、签名、暗色背景和续跑 |
 
-日常入口为 `node cli/tsuzuri.mjs <folder>`。裸命令提供交互菜单，`doctor` 检查依赖，`lyrics` 可在渲染前预览识别结果。
+日常入口为 `node cli/tsuzuri.mjs <folder>`。裸命令提供交互菜单，`fetch` 显式准备在线素材，`doctor` 检查依赖，`lyrics` 可在渲染前预览识别结果。缺素材时的在线提议只出现在交互终端，管道和脚本保持原行为。
 
 ## 管线与数据
 
 ```text
+可选：视频 URL / 搜索词 → fetch → 音频 + LRC
+                              ↓
 照片 + 音频 + 可选 LRC
         ↓
 Analyze → Plan → metadata/timeline.json → Render → output/*.mp4
@@ -31,7 +34,7 @@ Analyze → Plan → metadata/timeline.json → Render → output/*.mp4
 
 ## 关键约束
 
-- 所有分析和渲染均在本地完成，不使用云端 API
+- 所有分析和渲染均在本地完成，不使用云端 API；只有可选 `fetch` 会访问 yt-dlp 支持的平台与 LRCLIB
 - Python 支持 3.11–3.12，由 uv 管理 analyzer 环境
 - 照片保持静止，不再使用 Ken Burns motion 字段
 - `timeline.json` 是允许手动编辑的稳定阶段契约
@@ -57,4 +60,4 @@ cd cli && npm test
 cd renderer && npm run typecheck
 ```
 
-最近一次本地验证：analyzer 76 项、CLI 58 项测试通过，renderer 类型检查通过。
+最近一次本地验证（2026-07-14）：analyzer 76 项、CLI 81 项测试通过，renderer 类型检查通过。

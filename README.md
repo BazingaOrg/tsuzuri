@@ -1,6 +1,6 @@
 # tsuzuri（綴り）
 
-> 照片 + 一首歌（可选歌词），自动生成踩点影像日记。一条命令，全程本地。
+> 照片 + 一首歌（可选歌词），自动生成踩点影像日记。分析与渲染全程本地，在线备料可选。
 
 **中文** · [English](README.en.md)
 
@@ -24,7 +24,8 @@ osaka-trip/
 └── lyrics.lrc
 ```
 
-其中应包含若干照片、唯一一份音频，可选一份 `.lrc`。然后运行：
+自备素材时，其中应包含若干照片、唯一一份音频，可选一份 `.lrc`。如果缺少音频或歌词，
+也可以先运行 `node cli/tsuzuri.mjs fetch ./osaka-trip` 交互补齐。然后运行：
 
 ```bash
 node cli/tsuzuri.mjs ./osaka-trip
@@ -68,13 +69,33 @@ tsuzuri 会自动处理：
 
 目前支持 `.jpg`、`.jpeg`、`.png`、`.webp` 图片，以及 `.mp3`、`.m4a`、`.wav`、`.flac`、`.aac`、`.ogg` 音频；视频素材暂不支持。
 
+## 架构
+
+![tsuzuri 架构：可选在线备料进入本地分析、规划与双渲染管线](docs/assets/architecture/architecture.png)
+
+`fetch` 只负责把可选的在线素材写入素材夹；照片、音频和 LRC 就绪后，Analyze、Plan、
+Remotion 渲染与响度处理都在本地完成。视频与 still 共用画布、字体、照片和配色系统。
+
+## 可选在线备料
+
+```bash
+node cli/tsuzuri.mjs fetch ./osaka-trip
+```
+
+1. 缺音频时，可输入你有权使用的视频 URL，或用关键词从 5 个 yt-dlp 候选中选择。
+2. 下载后确认歌曲名和歌手，按 `歌曲名 - 歌手.ext` 整理文件名；替换已有音频必须确认。
+3. [LRCLIB](https://lrclib.net) 按歌曲信息和音频时长搜索同步歌词；时长差超过 3 秒的候选会标出风险。
+4. 预览带时间戳的歌词后再保存 `.lrc`；中文优先转为简体，英文和日文保持原文。
+
+音频下载需要自行安装 [yt-dlp](https://github.com/yt-dlp/yt-dlp)（macOS：`brew install yt-dlp`），
+`fetch` 只在实际下载时检查。已有歌词不会静默覆盖；放弃或没有匹配结果不算错误，仍可使用本地
+Whisper。只有交互终端会主动提议在线补齐，管道和脚本不会进入联网问答。
+
 ## 配置与文档
 
 在素材文件夹中添加 `tsuzuri.toml`，可调整分辨率、帧率、过渡、字幕、背景和片头片尾。
 
 分析结果保存在 `metadata/`。素材未变化时，可直接修改 `metadata/timeline.json` 后重跑，tsuzuri 会保留手动时间线并跳过重复分析。
-
-`fetch` 是可选的在线备料步骤：歌词经 [LRCLIB](https://lrclib.net) 搜索同步歌词（免 key），中文歌词优先转为简体，英文和日文保持原文，预览确认后保存为 `.lrc`；音频下载依赖你自行安装的 [yt-dlp](https://github.com/yt-dlp/yt-dlp)（`brew install yt-dlp`）。下载后会让你确认歌曲名和歌手，再按 `歌曲名 - 歌手` 整理文件名并搜索歌词。请只下载你有权使用的内容；跳过 `fetch` 时一切照旧本地完成。
 
 所有分析和渲染均在本地完成，不需要 API key。Whisper 会根据 Apple Silicon、NVIDIA CUDA 或 CPU 自动选择后端；模型仅在首次使用时下载。
 
