@@ -22,10 +22,10 @@
 | `album_fade` | `0.4` | album 过渡时长（秒） |
 | `crossfade` | `0.6` | crossfade 过渡时长（秒） |
 | `min_gap` | `2.0` | 相邻切换点最小间隔（秒） |
-| `flash_avg_threshold` | `2.0` | 人均展示低于此值时进入逐拍快闪模式 |
+| `flash_avg_threshold` | `2.0` | 平均每张展示低于此值时进入逐拍快闪模式 |
 | `flash_min_gap` | `0.8` | 快闪模式的最小切换间隔（秒） |
-| `trim_avg_threshold` | `10.0` | 人均展示超过此值时裁短歌曲 |
-| `trim_target_avg` | `8.0` | 裁歌后的目标人均展示时长（秒） |
+| `trim_avg_threshold` | `10.0` | 平均每张展示超过此值时裁短歌曲 |
+| `trim_target_avg` | `8.0` | 裁歌后的目标平均每张展示时长（秒） |
 
 ## 字幕与识别
 

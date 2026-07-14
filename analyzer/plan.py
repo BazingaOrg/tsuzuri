@@ -2,7 +2,7 @@
 
 自动决策:
 - 照片顺序:EXIF 拍摄时间优先,无 EXIF 按文件名排序(打印一行告知)
-- 快闪模式:人均展示 < 2s → 吸附目标从重拍降级为每拍,min_gap 放宽到 0.8s
+- 快闪模式:平均每张展示 < 2s → 吸附目标从重拍降级为每拍,min_gap 放宽到 0.8s
 - 字幕:lyrics.json 存在则并入,否则空数组(纯音乐)
 配置:文件夹内可选 tsuzuri.toml(photo_scale / min_gap 等),缺省即默认值。
 """
@@ -35,8 +35,8 @@ DEFAULTS = {
     "crossfade": 0.6,
     "flash_avg_threshold": 2.0,
     "flash_min_gap": 0.8,
-    "trim_avg_threshold": 10.0,  # 人均展示超过此值 → 裁剪音频
-    "trim_target_avg": 8.0,      # 裁剪目标:人均展示秒数
+    "trim_avg_threshold": 10.0,  # 平均每张展示超过此值 → 裁剪音频
+    "trim_target_avg": 8.0,      # 裁剪目标:平均每张展示秒数
     "subtitles": True,           # 字幕轨总开关
     # 片头/片尾运行默认仅用于规划;展示默认值的单一来源在 renderer/theme.ts
     "outro_text": "",
@@ -193,12 +193,12 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
         if candidates:
             duration = min(candidates, key=lambda d: abs(d - target))
             avg = duration / n
-            term.info(f"裁剪模式: 歌长图少,在 {duration:.1f}s 重拍处截断并淡出,人均 {avg:.1f}s")
+            term.info(f"裁剪模式: 歌长图少,在 {duration:.1f}s 重拍处截断并淡出,平均每张 {avg:.1f}s")
 
     is_flash = avg < cfg["flash_avg_threshold"]
     if is_flash:
         candidates, min_gap = beats["beats"], cfg["flash_min_gap"]
-        term.info(f"快闪模式: 人均 {avg:.1f}s < {cfg['flash_avg_threshold']}s,吸附每拍,min_gap={min_gap}s")
+        term.info(f"快闪模式: 平均每张 {avg:.1f}s < {cfg['flash_avg_threshold']}s,吸附每拍,min_gap={min_gap}s")
     else:
         candidates, min_gap = beats["downbeats"], cfg["min_gap"]
 
@@ -374,7 +374,7 @@ def main(argv: list[str] | None = None) -> int:
     n = len(timeline["photos"])
     term.detail(
         f"plan: {n} photos / {timeline['meta']['duration']}s "
-        f"(人均 {timeline['meta']['duration'] / n:.1f}s, 字幕 {len(lyrics)} 行)"
+        f"(平均每张 {timeline['meta']['duration'] / n:.1f}s, 字幕 {len(lyrics)} 行)"
     )
     return 0
 
