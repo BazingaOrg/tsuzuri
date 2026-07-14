@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {PassThrough} from 'node:stream';
 import test from 'node:test';
 
-import {PICK_BACK, withPrompts} from './prompts.mjs';
+import {PICK_BACK, PromptAbortError, withPrompts} from './prompts.mjs';
 
 const interact = async (answers, fn) => {
   const input = new PassThrough();
@@ -32,10 +32,10 @@ test('confirm supports a default independent from dangerous', async () => {
     await ask.confirm('继续吗?'),
   ]);
   assert.deepEqual(result, [true, false, false, true, true, false]);
-  assert.match(output, /继续吗\? \[Y\/n,回车=是\]/);
-  assert.match(output, /删除吗\? \[y\/N,回车=否\]/);
-  assert.match(output, /重试吗\? \[y\/N,回车=否\]/);
-  assert.match(output, /保守覆盖吗\? \[Y\/n,回车=是\]/);
+  assert.match(output, /继续吗\? \[回车确认,n=否\]/);
+  assert.match(output, /删除吗\? \[y=是,回车跳过\]/);
+  assert.match(output, /重试吗\? \[y=是,回车跳过\]/);
+  assert.match(output, /保守覆盖吗\? \[回车确认,n=否\]/);
 });
 
 test('pick handles invalid input, back, abandon, and a valid item', async () => {
@@ -63,4 +63,20 @@ test('line accepts a default and repeats after validation failure', async () => 
   assert.equal(result, '/tmp/photos');
   assert.match(output, /素材路径 \[\/tmp\/photos\]:/);
   assert.match(output, /请输入绝对路径/);
+});
+
+test('EOF rejects with PromptAbortError so caller finally blocks can run', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let cleaned = false;
+  const pending = withPrompts(async (ask) => {
+    try {
+      await ask.line('等待输入');
+    } finally {
+      cleaned = true;
+    }
+  }, {input, output});
+  input.end();
+  await assert.rejects(pending, PromptAbortError);
+  assert.equal(cleaned, true);
 });

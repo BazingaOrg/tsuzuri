@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import {scanFolder} from './project.mjs';
+import {scanFolder, scanFolderLoose} from './project.mjs';
 
 const makeFolder = (files) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-scan-'));
@@ -37,5 +37,35 @@ test('missing audio error points to the fetch recovery command', () => {
     );
   } finally {
     fs.rmSync(root, {recursive: true, force: true});
+  }
+});
+
+test('scanFolder discovers audio and lyrics in audio/ as relative paths', () => {
+  const dir = makeFolder(['photo.jpg']);
+  fs.mkdirSync(path.join(dir, 'audio'));
+  fs.writeFileSync(path.join(dir, 'audio', 'song.m4a'), 'audio');
+  fs.writeFileSync(path.join(dir, 'audio', 'song.lrc'), 'lyrics');
+  try {
+    assert.deepEqual(scanFolder(dir), {
+      photos: ['photo.jpg'],
+      audio: 'audio/song.m4a',
+      lyrics: 'audio/song.lrc',
+      videos: [],
+    });
+  } finally {
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('root and audio/ files are counted together without a silent priority', () => {
+  const dir = makeFolder(['root.mp3', 'root.lrc']);
+  fs.mkdirSync(path.join(dir, 'audio'));
+  fs.writeFileSync(path.join(dir, 'audio', 'nested.m4a'), 'audio');
+  fs.writeFileSync(path.join(dir, 'audio', 'nested.lrc'), 'lyrics');
+  try {
+    assert.deepEqual(scanFolderLoose(dir).audios, ['audio/nested.m4a', 'root.mp3']);
+    assert.throws(() => scanFolder(dir), /audio\/nested\.m4a.*root\.mp3/s);
+  } finally {
+    fs.rmSync(dir, {recursive: true, force: true});
   }
 });

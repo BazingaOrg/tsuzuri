@@ -11,19 +11,29 @@ const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.wav', '.flac', '.aac', '.ogg']);
 const LYRIC_EXTS = new Set(['.lrc']);
 // 视频素材暂不支持;单列出来让调用方显式提醒,而不是静默忽略
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v']);
+export const AUDIO_DIR = 'audio';
+
+const listFiles = (folder) =>
+  fs.readdirSync(folder, {withFileTypes: true})
+    .filter((entry) => !entry.name.startsWith('.') && (entry.isFile() || entry.isSymbolicLink()))
+    .map((entry) => entry.name);
 
 /**
  * 宽松扫描:只按扩展名分类,不校验数量。fetch 用它判断文件夹缺什么、有什么
  * 可覆盖;严格校验仍由 scanFolder 负责。
  */
 export const scanFolderLoose = (folder) => {
-  const entries = fs.readdirSync(folder).filter((f) => !f.startsWith('.'));
-  const byExt = (exts) => entries.filter((f) => exts.has(path.extname(f).toLowerCase())).sort();
+  const entries = listFiles(folder);
+  const audioFolder = path.join(folder, AUDIO_DIR);
+  const nestedEntries = fs.existsSync(audioFolder) && fs.statSync(audioFolder).isDirectory()
+    ? listFiles(audioFolder).map((name) => path.posix.join(AUDIO_DIR, name))
+    : [];
+  const byExt = (files, exts) => files.filter((f) => exts.has(path.extname(f).toLowerCase())).sort();
   return {
-    photos: byExt(IMAGE_EXTS),
-    audios: byExt(AUDIO_EXTS),
-    lyrics: byExt(LYRIC_EXTS),
-    videos: byExt(VIDEO_EXTS),
+    photos: byExt(entries, IMAGE_EXTS),
+    audios: byExt([...entries, ...nestedEntries], AUDIO_EXTS),
+    lyrics: byExt([...entries, ...nestedEntries], LYRIC_EXTS),
+    videos: byExt(entries, VIDEO_EXTS),
   };
 };
 

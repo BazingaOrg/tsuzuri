@@ -1,7 +1,7 @@
 /**
  * tsuzuri fetch <folder> — 在线备料:用用户自装的 yt-dlp 下载音频,用 LRCLIB
  * 公开 API 搜索同步歌词。两者都是可选步骤:yt-dlp 用时才检测(不内置下载器),
- * 歌词搜不到就照旧走本地 Whisper。落盘的 .lrc 与音频同名,下游零改动。
+ * 歌词搜不到就照旧走本地识别。fetch 获取的音频与同名 .lrc 归档到 audio/。
  *
  * 交互约定与 menu.mjs 一致:readline 问答、回车走默认值、Ctrl+C 退出。
  * 决策逻辑抽成纯函数(可测),交互层只负责问答与 spawn。
@@ -16,7 +16,7 @@ import {CliError} from './options.mjs';
 import {FIXES} from './dependencies.mjs';
 import {formatEquivalentCommand} from './menu.mjs';
 import {PICK_BACK, withPrompts} from './prompts.mjs';
-import {scanFolderLoose} from './project.mjs';
+import {AUDIO_DIR, scanFolderLoose} from './project.mjs';
 import {term} from './term.mjs';
 
 const LRCLIB_BASE = 'https://lrclib.net/api';
@@ -112,15 +112,17 @@ export const parseLrc = (text) => {
   return entries.sort((a, b) => a.time - b.time);
 };
 
-export const formatLrcPreview = (entries, {limit = PREVIEW_LINES} = {}) => {
-  const lines = entries.slice(0, limit).map((e) => {
+export const formatLrcPreview = (entries, {offset = 0, limit = PREVIEW_LINES} = {}) => {
+  const lines = entries.slice(offset, offset + limit).map((e) => {
     const minutes = Math.floor(e.time / 60);
     const seconds = (e.time - minutes * 60).toFixed(1).padStart(4, '0');
     return `[${String(minutes).padStart(2, '0')}:${seconds}] ${e.text}`;
   });
-  if (entries.length > limit) lines.push(`… 共 ${entries.length} 行`);
   return lines;
 };
+
+export const formatLrcPageTitle = (total, offset, limit = PREVIEW_LINES) =>
+  `歌词预览 ${offset + 1}-${Math.min(offset + limit, total)}/共 ${total} 行`;
 
 /**
  * 只用于决定是否做繁转简:日文歌词通常含假名,必须原样保留;
@@ -232,21 +234,25 @@ export const downloadWithYtDlp = (
  * 先把下载结果复制到素材目录内的隐藏 staging 目录,再替换。
  * 任何一步失败都尽力回滚,保留旧音频。
  */
-export const installDownloadedAudio = ({source, folder, filename, existing = null}) => {
-  const destination = path.join(folder, filename);
+const installFetchedFile = ({source = null, contents = null, folder, filename, existing = null}) => {
+  const audioFolder = path.join(folder, AUDIO_DIR);
+  const audioFolderExisted = fs.existsSync(audioFolder);
+  fs.mkdirSync(audioFolder, {recursive: true});
+  const destination = path.join(audioFolder, filename);
   const existingPath = existing ? path.join(folder, existing) : null;
   const destinationIsExisting = existingPath && path.resolve(existingPath) === path.resolve(destination);
   if (fs.existsSync(destination) && !destinationIsExisting) {
     throw new CliError(`目标文件已存在: ${filename}`);
   }
 
-  const stagingDir = fs.mkdtempSync(path.join(folder, '.tsuzuri-fetch-'));
+  const stagingDir = fs.mkdtempSync(path.join(audioFolder, '.tsuzuri-fetch-'));
   const staged = path.join(stagingDir, filename);
   const backup = path.join(stagingDir, `previous${path.extname(filename)}`);
   let installed = false;
   let backedUp = false;
   try {
-    fs.copyFileSync(source, staged);
+    if (source) fs.copyFileSync(source, staged);
+    else fs.writeFileSync(staged, contents, 'utf8');
     if (destinationIsExisting) {
       fs.renameSync(destination, backup);
       backedUp = true;
@@ -255,15 +261,23 @@ export const installDownloadedAudio = ({source, folder, filename, existing = nul
     installed = true;
     if (existingPath && !destinationIsExisting) fs.rmSync(existingPath);
     if (backedUp) fs.rmSync(backup, {force: true});
-    return filename;
+    return path.posix.join(AUDIO_DIR, filename);
   } catch (error) {
     if (installed) fs.rmSync(destination, {force: true});
     if (backedUp && fs.existsSync(backup)) fs.renameSync(backup, destination);
     throw error;
   } finally {
     fs.rmSync(stagingDir, {recursive: true, force: true});
+    if (!audioFolderExisted && fs.readdirSync(audioFolder).length === 0) {
+      fs.rmdirSync(audioFolder);
+    }
   }
 };
+
+export const installDownloadedAudio = (options) => installFetchedFile(options);
+
+export const installDownloadedLyrics = ({lyrics, ...options}) =>
+  installFetchedFile({...options, contents: lyrics});
 
 /** 读音频 tag 与时长;ffprobe 失败不致命,返回空对象走文件名兜底。 */
 export const probeAudio = (file, spawn = spawnSync) => {
@@ -337,7 +351,7 @@ const NETWORK_HINT = '检查网络是否可达 lrclib.net(请求经 curl 发出,
 // ---------------------------------------------------------------------------
 
 /** 音频下载子流程;成功时返回用户确认的文件名/歌曲信息。 */
-const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
+const audioFlow = async (ask, folder, {existing = null} = {}) => {
   const ytdlp = checkYtDlp();
   if (!ytdlp.ok) {
     term.error('未找到 yt-dlp(下载音频需要它,由你自行安装)');
@@ -388,28 +402,24 @@ const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
     try {
       term.info(`下载文件: ${result.audio}`);
       const probe = probeAudio(result.source);
-      const suggestedTitle = sanitizeFilePart(
+      const sourceTitle = sanitizeFilePart(
         probe.title || path.basename(result.audio, path.extname(result.audio)),
       );
-      const suggestedArtist = sanitizeFilePart(probe.artist || '');
+      term.detail(`来源视频: ${sourceTitle || result.audio}`);
 
       for (;;) {
-        const titleInput = await ask.line('歌曲名', {defaultValue: suggestedTitle});
-        const title = sanitizeFilePart(titleInput);
-        if (!title) {
-          term.warn('歌曲名不能为空');
-          continue;
-        }
-        const artistPrompt = suggestedArtist ? '歌手(输入 0 留空)' : '歌手(可留空)';
-        const artistInput = await ask.line(artistPrompt, {
-          defaultValue: suggestedArtist || undefined,
+        const titleInput = await ask.line('歌曲名(必填,用于文件名和歌词搜索)', {
+          validate: (value) => Boolean(sanitizeFilePart(value)) || '歌曲名不能为空',
         });
-        const artist = artistInput === '0' ? '' : sanitizeFilePart(artistInput || suggestedArtist);
+        const title = sanitizeFilePart(titleInput);
+        const artistInput = await ask.line('歌手(可选,填写后歌词匹配更准确;0=返回修改歌曲名)');
+        if (artistInput === '0') continue;
+        const artist = sanitizeFilePart(artistInput);
         const filename = buildAudioFilename({title, artist, ext: path.extname(result.audio)});
-        out.write(`  将保存为: ${filename}\n`);
+        term.detail(`保存文件: ${path.posix.join(AUDIO_DIR, filename)}`);
         if (!(await ask.confirm('歌曲信息和文件名正确吗?'))) continue;
 
-        const destination = path.join(folder, filename);
+        const destination = path.join(folder, AUDIO_DIR, filename);
         const sameAsExisting = existing && path.resolve(destination) === path.resolve(path.join(folder, existing));
         if (fs.existsSync(destination) && !sameAsExisting) {
           term.error(`目标文件已存在: ${filename}`);
@@ -417,9 +427,9 @@ const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
           continue;
         }
 
-        installDownloadedAudio({source: result.source, folder, filename, existing});
-        term.success(`音频已就绪: ${filename}`);
-        return {audio: filename, title, artist};
+        const installed = installDownloadedAudio({source: result.source, folder, filename, existing});
+        term.success(`音频已就绪: ${installed}`);
+        return {audio: installed, title, artist};
       }
     } finally {
       fs.rmSync(result.tempDir, {recursive: true, force: true});
@@ -428,12 +438,17 @@ const audioFlow = async (ask, out, folder, {existing = null} = {}) => {
 };
 
 /** 歌词搜索子流程;audio 必须存在(要按时长匹配、按音频名落盘)。 */
-const lyricsFlow = async (
+export const lyricsFlow = async (
   ask,
   out,
   folder,
   audio,
-  {existingLrc = null, confirmedTitle = null, confirmedArtist = null} = {},
+  {
+    existingLrc = null,
+    confirmedTitle = null,
+    confirmedArtist = null,
+    fetcher = lrclibFetch,
+  } = {},
 ) => {
   const probe = probeAudio(path.join(folder, audio));
   const title = confirmedTitle || probe.title;
@@ -458,7 +473,7 @@ const lyricsFlow = async (
         artist,
         duration: probe.duration,
         customized: queryCustomized,
-      });
+      }, fetcher);
     } catch (error) {
       term.error(`歌词搜索失败: ${error.message}`);
       term.detail(NETWORK_HINT);
@@ -472,26 +487,46 @@ const lyricsFlow = async (
       continue;
     }
 
-    const choice = await ask.pick(
-      '选择要预览的歌词',
-      synced.map((record) => formatLyricsCandidate(record, probe.duration)),
-    );
-    if (choice === null) return false;
-    if (choice === PICK_BACK) continue;
-    const picked = synced[choice.index];
+    for (;;) {
+      const choice = await ask.pick(
+        '选择要预览的歌词',
+        synced.map((record) => formatLyricsCandidate(record, probe.duration)),
+      );
+      if (choice === null) return false;
+      if (choice === PICK_BACK) break;
+      const picked = synced[choice.index];
 
-    const preferred = await preferSimplifiedChineseLrc(picked.syncedLyrics);
-    if (preferred.converted) term.info('中文歌词已转为简体,以下为最终保存预览');
-    const entries = parseLrc(preferred.lyrics);
-    for (const line of formatLrcPreview(entries)) out.write(`  ${line}\n`);
-    const lrcName = `${path.basename(audio, path.extname(audio))}.lrc`;
-    if (!(await ask.confirm(`歌词看起来对吗?保存为 ${lrcName}?`))) continue;
+      const preferred = await preferSimplifiedChineseLrc(picked.syncedLyrics);
+      if (preferred.converted) term.info('中文歌词已转为简体,以下为最终保存预览');
+      const entries = parseLrc(preferred.lyrics);
+      let previewBack = false;
+      for (let offset = 0; offset < entries.length; offset += PREVIEW_LINES) {
+        term.info(formatLrcPageTitle(entries.length, offset));
+        for (const line of formatLrcPreview(entries, {offset})) out.write(`${line}\n`);
+        if (offset + PREVIEW_LINES >= entries.length) break;
+        const action = await ask.line('回车=下一页,s=跳到保存,0=返回候选');
+        if (action === '0') {
+          previewBack = true;
+          break;
+        }
+        if (action.toLowerCase() === 's') break;
+      }
+      if (previewBack) continue;
 
-    fs.writeFileSync(path.join(folder, lrcName), preferred.lyrics, 'utf8');
-    if (existingLrc && existingLrc !== lrcName) fs.rmSync(path.join(folder, existingLrc), {force: true});
-    term.success(`歌词已保存: ${lrcName}`);
-    term.detail(`可运行 node cli/tsuzuri.mjs lyrics ${folder} 预览完整对轴效果`);
-    return true;
+      const lrcName = `${path.basename(audio, path.extname(audio))}.lrc`;
+      const relativeLrc = path.posix.join(AUDIO_DIR, lrcName);
+      if (!(await ask.confirm(`歌词正确并保存为 ${relativeLrc}?`))) continue;
+
+      const installed = installDownloadedLyrics({
+        lyrics: preferred.lyrics,
+        folder,
+        filename: lrcName,
+        existing: existingLrc,
+      });
+      term.success(`歌词已保存: ${installed}`);
+      term.detail(`可运行 node cli/tsuzuri.mjs lyrics ${folder} 预览完整对轴效果`);
+      return true;
+    }
   }
 };
 
@@ -548,13 +583,13 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
       audios = await chooseSingleAudio(ask, folder, audios);
     } else if (audios.length === 1) {
       if (await ask.confirm(`已有 ${audios[0]},重新下载并替换?`, {dangerous: true})) {
-        downloadedInfo = await audioFlow(ask, output, folder, {existing: audios[0]});
+        downloadedInfo = await audioFlow(ask, folder, {existing: audios[0]});
         if (downloadedInfo && lyrics.length > 0) {
           term.warn('音频已更换,现有 .lrc 时间轴可能不再匹配,建议重新搜索歌词');
         }
       }
-    } else if (await ask.confirm('文件夹里没有音频,现在下载?')) {
-      downloadedInfo = await audioFlow(ask, output, folder);
+    } else if (await ask.confirm('文件夹里没有音频,现在下载?', {defaultValue: false})) {
+      downloadedInfo = await audioFlow(ask, folder);
     }
 
     ({audios, lyrics} = scanFolderLoose(folder));
@@ -570,12 +605,12 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
           confirmedArtist: downloadedInfo?.artist,
         });
       }
-    } else if (await ask.confirm('没有 .lrc,在线搜索同步歌词?')) {
+    } else if (await ask.confirm('没有 .lrc,在线搜索同步歌词?', {defaultValue: false})) {
       const saved = await lyricsFlow(ask, output, folder, audios[0], {
         confirmedTitle: downloadedInfo?.title,
         confirmedArtist: downloadedInfo?.artist,
       });
-      if (!saved) term.info('未保存歌词,渲染时将用本地 Whisper 识别;之后也可手动放入 .lrc');
+      if (!saved) term.info('未保存歌词;渲染时会在本机识别人声并生成字幕,不会上传音频');
     }
     const nextStep = buildNextStepMessage(folder, scanFolderLoose(folder));
     if (nextStep) term.info(nextStep);
@@ -600,17 +635,18 @@ export const offerFetch = async (folder, {input = process.stdin, output = proces
         term.info(`之后可运行 ${formatEquivalentCommand(['fetch', folder])} 补齐`);
         return;
       }
-      downloadedInfo = await audioFlow(ask, output, folder);
+      downloadedInfo = await audioFlow(ask, folder);
       if (!downloadedInfo) return;
     }
     const {audios, lyrics} = scanFolderLoose(folder);
     if (audios.length === 1 && lyrics.length === 0) {
-      if (await ask.confirm('没有 .lrc,先在线搜索同步歌词吗?搜不到会用本地 Whisper')) {
+      term.detail('没有歌词也能继续;渲染时会在本机识别人声并生成字幕,不会上传音频');
+      if (await ask.confirm('没有 .lrc,先在线搜索同步歌词吗?', {defaultValue: false})) {
         const saved = await lyricsFlow(ask, output, folder, audios[0], {
           confirmedTitle: downloadedInfo?.title,
           confirmedArtist: downloadedInfo?.artist,
         });
-        if (!saved) term.info('未保存歌词,将用本地 Whisper 识别');
+        if (!saved) term.info('未保存歌词;后续渲染会在本机识别人声并生成字幕');
       }
     }
   }, {input, output});

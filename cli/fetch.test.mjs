@@ -15,9 +15,12 @@ import {
   durationDelta,
   filterSyncedRecords,
   formatDuration,
+  formatLrcPageTitle,
   formatLrcPreview,
   formatLyricsCandidate,
   installDownloadedAudio,
+  installDownloadedLyrics,
+  lyricsFlow,
   parseCurlResponse,
   parseLrc,
   parseSearchLine,
@@ -84,10 +87,11 @@ test('parseLrc reads timestamps, skips metadata, and sorts by time', () => {
   ]);
 });
 
-test('formatLrcPreview truncates long lyrics with a total count', () => {
+test('formatLrcPreview pages through all lyrics without truncating rows', () => {
   const entries = Array.from({length: 15}, (_, i) => ({time: i * 10, text: `行${i}`}));
-  const lines = formatLrcPreview(entries, {limit: 3});
-  assert.deepEqual(lines, ['[00:00.0] 行0', '[00:10.0] 行1', '[00:20.0] 行2', '… 共 15 行']);
+  const lines = formatLrcPreview(entries, {offset: 3, limit: 3});
+  assert.deepEqual(lines, ['[00:30.0] 行3', '[00:40.0] 行4', '[00:50.0] 行5']);
+  assert.equal(formatLrcPageTitle(15, 3, 3), '歌词预览 4-6/共 15 行');
   assert.equal(formatLrcPreview(entries.slice(0, 2)).length, 2);
 });
 
@@ -172,6 +176,42 @@ test('LRCLIB keeps a usable exact synced record without searching again', async 
   assert.deepEqual(calls, ['/get']);
 });
 
+test('lyrics preview can return to candidates without repeating the network search', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  fs.writeFileSync(path.join(folder, 'song.wav'), Buffer.alloc(44));
+  const syncedLyrics = Array.from({length: 13}, (_, i) =>
+    `[00:${String(i).padStart(2, '0')}.00]行${i}`,
+  ).join('\n');
+  let fetchCount = 0;
+  let pickCount = 0;
+  const previewActions = ['0', 's'];
+  try {
+    const saved = await lyricsFlow({
+      line: async (text) => text === '歌词搜索关键词' ? 'song' : previewActions.shift(),
+      pick: async () => {
+        pickCount += 1;
+        return {index: 0};
+      },
+      confirm: async () => true,
+    }, {write: () => {}}, folder, 'song.wav', {
+      fetcher: async () => {
+        fetchCount += 1;
+        return [{
+          trackName: 'Song', artistName: 'Artist', duration: 13,
+          syncedLyrics, instrumental: false,
+        }];
+      },
+    });
+
+    assert.equal(saved, true);
+    assert.equal(fetchCount, 1);
+    assert.equal(pickCount, 2);
+    assert.equal(fs.readFileSync(path.join(folder, 'audio', 'song.lrc'), 'utf8'), syncedLyrics);
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
+});
+
 test('yt-dlp downloads outside the material folder and safely replaces a same-name audio', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
   const folder = path.join(root, 'material');
@@ -197,14 +237,16 @@ test('yt-dlp downloads outside the material folder and safely replaces a same-na
     assert.equal(spawnCount, 1);
     assert.equal(fs.readFileSync(oldFile, 'utf8'), 'old audio');
     assert.notEqual(path.dirname(result.source), folder);
-    installDownloadedAudio({
+    const installed = installDownloadedAudio({
       source: result.source,
       folder,
       filename: 'Song - Artist.m4a',
       existing: 'Song - Artist.m4a',
     });
-    assert.equal(fs.readFileSync(oldFile, 'utf8'), 'new audio');
-    assert.deepEqual(fs.readdirSync(folder), ['Song - Artist.m4a']);
+    assert.equal(installed, 'audio/Song - Artist.m4a');
+    assert.equal(fs.existsSync(oldFile), false);
+    assert.equal(fs.readFileSync(path.join(folder, installed), 'utf8'), 'new audio');
+    assert.deepEqual(fs.readdirSync(folder), ['audio']);
   } finally {
     fs.rmSync(root, {recursive: true, force: true});
   }
@@ -223,6 +265,26 @@ test('a failed staged install preserves the existing audio', () => {
     }));
     assert.equal(fs.readFileSync(oldFile, 'utf8'), 'old audio');
     assert.deepEqual(fs.readdirSync(root), ['Song.m4a']);
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+});
+
+test('a failed staged lyrics replacement preserves the existing lyrics', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  const audioFolder = path.join(root, 'audio');
+  fs.mkdirSync(audioFolder);
+  const oldFile = path.join(audioFolder, 'Song.lrc');
+  fs.writeFileSync(oldFile, 'old lyrics');
+  try {
+    assert.throws(() => installDownloadedLyrics({
+      lyrics: Symbol('invalid contents'),
+      folder: root,
+      filename: 'Song.lrc',
+      existing: 'audio/Song.lrc',
+    }));
+    assert.equal(fs.readFileSync(oldFile, 'utf8'), 'old lyrics');
+    assert.deepEqual(fs.readdirSync(audioFolder), ['Song.lrc']);
   } finally {
     fs.rmSync(root, {recursive: true, force: true});
   }

@@ -18,6 +18,7 @@ import {runDoctor} from './doctor.mjs';
 import {offerFetch, runFetch} from './fetch.mjs';
 import {runLyrics} from './lyrics.mjs';
 import {runMenu} from './menu.mjs';
+import {PromptAbortError} from './prompts.mjs';
 import {runStill} from './still.mjs';
 import {term} from './term.mjs';
 import {FIXES} from './dependencies.mjs';
@@ -180,7 +181,7 @@ const main = async () => {
   const n = tl.photos.length;
   term.info('渲染计划');
   term.detail(
-    `照片: ${n} 张,人均 ${(tl.meta.duration / n).toFixed(1)}s\n` +
+    `照片: ${n} 张,平均每张 ${(tl.meta.duration / n).toFixed(1)}s\n` +
       `音频: ${tl.meta.audio.replace(/^\.\//, '')},${Math.round(tl.meta.duration)}s\n` +
       `歌词: ${tl.subtitles.length > 0 ? `${tl.subtitles.length} 行` : '无(纯音乐或未识别)'}`,
   );
@@ -210,10 +211,14 @@ if (isMain) {
   try {
     process.exitCode = await main();
   } catch (error) {
-    term.error(`tsuzuri: ${error instanceof Error ? error.message : String(error)}`);
-    if ((process.env.TSUZURI_DEBUG === '1' || process.env.DEBUG === '1') && error instanceof Error && error.stack) {
-      term.detail(error.stack);
+    if (error instanceof PromptAbortError) {
+      process.exitCode = error.exitCode;
+    } else {
+      term.error(`tsuzuri: ${error instanceof Error ? error.message : String(error)}`);
+      if ((process.env.TSUZURI_DEBUG === '1' || process.env.DEBUG === '1') && error instanceof Error && error.stack) {
+        term.detail(error.stack);
+      }
+      process.exitCode = 1;
     }
-    process.exitCode = 1;
   }
 }

@@ -2,6 +2,14 @@ import readline from 'node:readline';
 
 export const PICK_BACK = Symbol('pick-back');
 
+export class PromptAbortError extends Error {
+  constructor() {
+    super('用户取消');
+    this.name = 'PromptAbortError';
+    this.exitCode = 130;
+  }
+}
+
 const isYes = (answer) => /^y(es)?$/i.test(String(answer ?? '').trim());
 const isNo = (answer) => /^n(o)?$/i.test(String(answer ?? '').trim());
 
@@ -15,19 +23,33 @@ export const withPrompts = async (
 ) => {
   const rl = readline.createInterface({input, output});
   let finished = false;
+  let abortError = null;
+  let rejectQuestion = null;
   const abort = () => {
+    if (finished || abortError) return;
+    abortError = new PromptAbortError();
     output.write('\n');
-    process.exit(130);
+    rejectQuestion?.(abortError);
+    rl.close();
   };
   rl.on('SIGINT', abort);
   rl.on('close', () => {
     if (!finished) abort();
   });
-  const question = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
+  const question = (prompt) => {
+    if (abortError) return Promise.reject(abortError);
+    return new Promise((resolve, reject) => {
+      rejectQuestion = reject;
+      rl.question(prompt, (answer) => {
+        rejectQuestion = null;
+        resolve(answer);
+      });
+    });
+  };
 
   const ask = {
     async confirm(text, {dangerous = false, defaultValue = !dangerous} = {}) {
-      const suffix = defaultValue ? '[Y/n,回车=是]' : '[y/N,回车=否]';
+      const suffix = defaultValue ? '[回车确认,n=否]' : '[y=是,回车跳过]';
       const answer = (await question(`${text} ${suffix} `)).trim();
       if (!answer) return defaultValue;
       return isYes(answer) ? true : isNo(answer) ? false : defaultValue;
