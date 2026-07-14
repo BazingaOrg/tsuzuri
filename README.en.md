@@ -20,13 +20,15 @@ Prepare a media folder:
 osaka-trip/
 ├── photo-01.jpg
 ├── photo-02.jpg
-├── music.mp3
-└── lyrics.lrc
+└── audio/
+    ├── music.mp3
+    └── lyrics.lrc
 ```
 
 When bringing your own media, include photos, exactly one audio file, and optionally one `.lrc`.
-If audio or lyrics are missing, first run `node cli/tsuzuri.mjs fetch ./osaka-trip` to fill them
-interactively. Then run:
+Audio and `.lrc` files may live at the project root or in `audio/`, so existing projects need no
+migration; `fetch` puts newly acquired files in `audio/`. If audio or lyrics are missing, first run
+`node cli/tsuzuri.mjs fetch ./osaka-trip` to fill them interactively. Then run:
 
 ```bash
 node cli/tsuzuri.mjs ./osaka-trip
@@ -86,16 +88,17 @@ node cli/tsuzuri.mjs fetch ./osaka-trip
 
 1. When audio is missing, enter a video URL you are entitled to use, or choose from five yt-dlp search results.
 2. If the folder has multiple audio files, choose one to keep. The others are deleted only after confirmation; cancelling changes nothing.
-3. Confirm the song title and artist after download; tsuzuri names it `Song - Artist.ext`. Replacing existing audio requires confirmation.
+3. Enter the song title and optional artist after download; tsuzuri names it `audio/Song - Artist.ext`. The video title is reference-only, and replacing existing audio requires confirmation.
 4. [LRCLIB](https://lrclib.net) searches synced lyrics using the song metadata and audio duration; candidates more than three seconds away are flagged.
-5. Preview the timestamped lyrics before saving `.lrc`; Chinese is converted to Simplified Chinese when applicable, while English and Japanese stay unchanged.
+5. Page through all timestamped lyrics before saving them in `audio/`; Chinese is converted to Simplified Chinese when applicable, while English and Japanese stay unchanged.
 
-In interactive lists, enter a number to select. Where a back option is shown, use `0` to go back; press Enter to abandon the current subflow. Destructive actions such as replacement or deletion default to no.
+In interactive lists, enter a number to select. Where a back option is shown, use `0` to go back; press Enter to abandon the current subflow. Optional network steps and destructive actions default to skip; reviewed song information can be confirmed with Enter.
 
 Audio download requires a [yt-dlp](https://github.com/yt-dlp/yt-dlp) you install yourself
 (`brew install yt-dlp` on macOS); `fetch` checks it only when download is used. Existing lyrics are never
-silently overwritten. Cancelling or finding no match is not an error; local Whisper remains available.
-Only interactive terminals offer online preparation—pipes and scripts never enter the network prompts.
+silently overwritten. Cancelling or finding no match is not an error; local transcription remains available
+and never uploads the audio. Exiting immediately removes an unconfirmed temporary download, so the next run
+downloads it again. Only interactive terminals offer online preparation—pipes and scripts never enter the network prompts.
 
 ## Configuration and documentation
 
