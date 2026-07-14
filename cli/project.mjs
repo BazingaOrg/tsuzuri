@@ -12,17 +12,28 @@ const LYRIC_EXTS = new Set(['.lrc']);
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v']);
 
 /**
+ * 宽松扫描:只按扩展名分类,不校验数量。fetch 用它判断文件夹缺什么、有什么
+ * 可覆盖;严格校验仍由 scanFolder 负责。
+ */
+export const scanFolderLoose = (folder) => {
+  const entries = fs.readdirSync(folder).filter((f) => !f.startsWith('.'));
+  const byExt = (exts) => entries.filter((f) => exts.has(path.extname(f).toLowerCase())).sort();
+  return {
+    photos: byExt(IMAGE_EXTS),
+    audios: byExt(AUDIO_EXTS),
+    lyrics: byExt(LYRIC_EXTS),
+    videos: byExt(VIDEO_EXTS),
+  };
+};
+
+/**
  * Scan a folder for the photo/audio/lyrics inputs tsuzuri needs.
  * `requirePhotos: false` lets commands that don't render a video (e.g. `lyrics`)
  * reuse the same audio/lrc discovery rules without requiring photos to be present.
  * `videos` lists unsupported video files so callers can warn about them.
  */
 export const scanFolder = (folder, {requirePhotos = true} = {}) => {
-  const entries = fs.readdirSync(folder).filter((f) => !f.startsWith('.'));
-  const photos = entries.filter((f) => IMAGE_EXTS.has(path.extname(f).toLowerCase())).sort();
-  const audios = entries.filter((f) => AUDIO_EXTS.has(path.extname(f).toLowerCase())).sort();
-  const lyrics = entries.filter((f) => LYRIC_EXTS.has(path.extname(f).toLowerCase())).sort();
-  const videos = entries.filter((f) => VIDEO_EXTS.has(path.extname(f).toLowerCase())).sort();
+  const {photos, audios, lyrics, videos} = scanFolderLoose(folder);
   if (audios.length > 1) throw new CliError(`文件夹里有多个音频,只能有一个:\n${audios.join('\n')}`);
   if (audios.length === 0) {
     throw new CliError(`没有找到音频文件。目录约定:照片 + 唯一的音频文件(${[...AUDIO_EXTS].join(' ')})`);

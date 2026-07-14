@@ -57,6 +57,17 @@ const rendererCheck = (repo) => {
   return {ok: false, line: '渲染器依赖未安装', fix: FIXES.renderer};
 };
 
+/** 可选依赖 yt-dlp:仅提示,从不判定失败(只有 fetch 下载音频用到,用户自装)。 */
+const reportYtDlp = () => {
+  const r = spawnSync('yt-dlp', ['--version'], {encoding: 'utf8'});
+  if (!r.error && r.status === 0) {
+    term.success(`yt-dlp ${(r.stdout ?? '').trim()}(可选,fetch 下载音频用)`);
+  } else {
+    term.info('yt-dlp 未安装(可选,fetch 下载音频时才需要)');
+    term.detail(FIXES['yt-dlp']);
+  }
+};
+
 /** 分析器 Python 环境:仅提示,从不判定失败(uv 会在首次运行时自动构建)。 */
 const reportAnalyzerEnv = (repo) => {
   const venv = path.join(repo, 'analyzer', '.venv');
@@ -80,6 +91,7 @@ export const runDoctor = ({repo = REPO} = {}) => {
       term.detail(check.fix);
     }
   }
+  reportYtDlp();
   reportAnalyzerEnv(repo);
 
   return hasFailure ? 1 : 0;

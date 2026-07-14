@@ -45,6 +45,7 @@ test('buildArgvFromChoices maps each menu entry onto CLI argv', () => {
   ]);
   assert.deepEqual(buildArgvFromChoices({choice: '3', target: './trip'}), ['lyrics', './trip']);
   assert.deepEqual(buildArgvFromChoices({choice: '4'}), ['doctor']);
+  assert.deepEqual(buildArgvFromChoices({choice: '5', target: './trip'}), ['fetch', './trip']);
   assert.equal(buildArgvFromChoices({choice: '9'}), null);
 });
 

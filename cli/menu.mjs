@@ -14,6 +14,7 @@ export const MENU_ITEMS = [
   {key: '2', label: '导出静态作品图(still)', pathPrompt: '照片或文件夹'},
   {key: '3', label: '预览歌词识别(lyrics)', pathPrompt: '素材文件夹'},
   {key: '4', label: '检查依赖(doctor)', pathPrompt: null},
+  {key: '5', label: '获取音频/歌词到素材夹(fetch)', pathPrompt: '素材文件夹'},
 ];
 
 /**
@@ -50,6 +51,7 @@ export const buildArgvFromChoices = ({choice, target, exif = false, sign = false
   }
   if (choice === '3') return ['lyrics', target];
   if (choice === '4') return ['doctor'];
+  if (choice === '5') return ['fetch', target];
   return null;
 };
 
@@ -84,7 +86,7 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
 
     let item;
     for (;;) {
-      const choice = (await ask('输入序号 [1-4] 后回车，Ctrl+C 退出: ')).trim();
+      const choice = (await ask(`输入序号 [1-${MENU_ITEMS.length}] 后回车，Ctrl+C 退出: `)).trim();
       item = MENU_ITEMS.find((i) => i.key === choice);
       if (item) break;
     }
@@ -110,7 +112,7 @@ export const runMenu = async ({input = process.stdin, output = process.stdout} =
 
     const argv = buildArgvFromChoices({choice: item.key, target, exif, sign, dark});
     term.detail(`等效命令: ${formatEquivalentCommand(argv)}`);
-    if (item.key !== '4') {
+    if (!['4', '5'].includes(item.key)) {
       term.detail('进阶配置(分辨率/过渡/字幕/背景…)见素材夹 tsuzuri.toml,参考 docs/config.md');
     }
     return argv;

@@ -35,14 +35,25 @@ test('lyrics does not accept -o', () => {
   assert.throws(() => parseArgs(['lyrics', 'album', '-o', 'out.mp4']), /不支持 -o/);
 });
 
+test('a leading `fetch` token routes to the fetch command', () => {
+  assert.deepEqual(parseArgs(['fetch', 'album']), {command: 'fetch', folder: 'album'});
+});
+
+test('fetch without a folder or with extra arguments is a usage error', () => {
+  assert.throws(() => parseArgs(['fetch']), /用法: tsuzuri fetch <folder>/);
+  assert.throws(() => parseArgs(['fetch', 'a', 'b']), /未知参数: b/);
+  assert.throws(() => parseArgs(['fetch', 'album', '--audio']), /未知参数: --audio/);
+});
+
 test('a leading `help` token (or -h / --help) routes to the help command', () => {
   assert.deepEqual(parseArgs(['help']), {command: 'help'});
   assert.deepEqual(parseArgs(['-h']), {command: 'help'});
   assert.deepEqual(parseArgs(['--help']), {command: 'help'});
 });
 
-test('a path-qualified folder named doctor/lyrics/still/help is the escape hatch, not a verb', () => {
+test('a path-qualified folder named doctor/lyrics/still/fetch/help is the escape hatch, not a verb', () => {
   assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null});
+  assert.deepEqual(parseArgs(['./fetch']), {command: 'render', folder: './fetch', output: null});
   assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null});
   assert.deepEqual(parseArgs(['./help']), {command: 'render', folder: './help', output: null});
   assert.deepEqual(parseArgs(['./still']), {command: 'render', folder: './still', output: null});

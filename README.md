@@ -39,6 +39,7 @@ node cli/tsuzuri.mjs
 node cli/tsuzuri.mjs ./osaka-trip
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4
 node cli/tsuzuri.mjs lyrics ./osaka-trip
+node cli/tsuzuri.mjs fetch ./osaka-trip
 node cli/tsuzuri.mjs still ./photo.jpg
 node cli/tsuzuri.mjs still ./photos --exif --sign --dark
 node cli/tsuzuri.mjs doctor
@@ -51,6 +52,7 @@ node cli/tsuzuri.mjs help
 | --- | --- |
 | `<folder>` | 分析音频、规划时间线并渲染视频 |
 | `lyrics <folder>` | 预览歌词识别结果，不渲染 |
+| `fetch <folder>` | 在线获取音频/歌词到素材夹（交互） |
 | `still <photo\|folder>` | 导出同款静态 PNG |
 | `doctor` | 检查本地依赖 |
 
@@ -60,6 +62,7 @@ tsuzuri 会自动处理：
 
 - 照片均有 EXIF 时间时按拍摄时间排列，否则按文件名排列
 - 优先读取 `.lrc`，否则使用本地 Whisper；纯音乐自动跳过字幕
+- 交互终端下缺音频/歌词时，主动提议在线获取（同 `fetch`）；素材齐备则不打扰
 - 根据照片数量和歌曲长度选择踩点节奏，必要时在重拍处裁歌并淡出
 - 将成片响度归一到 −14 LUFS（TP −1.5 dB）
 
@@ -70,6 +73,8 @@ tsuzuri 会自动处理：
 在素材文件夹中添加 `tsuzuri.toml`，可调整分辨率、帧率、过渡、字幕、背景和片头片尾。
 
 分析结果保存在 `metadata/`。素材未变化时，可直接修改 `metadata/timeline.json` 后重跑，tsuzuri 会保留手动时间线并跳过重复分析。
+
+`fetch` 是可选的在线备料步骤：歌词经 [LRCLIB](https://lrclib.net) 搜索同步歌词（免 key），中文歌词优先转为简体，英文和日文保持原文，预览确认后保存为 `.lrc`；音频下载依赖你自行安装的 [yt-dlp](https://github.com/yt-dlp/yt-dlp)（`brew install yt-dlp`）。下载后会让你确认歌曲名和歌手，再按 `歌曲名 - 歌手` 整理文件名并搜索歌词。请只下载你有权使用的内容；跳过 `fetch` 时一切照旧本地完成。
 
 所有分析和渲染均在本地完成，不需要 API key。Whisper 会根据 Apple Silicon、NVIDIA CUDA 或 CPU 自动选择后端；模型仅在首次使用时下载。
 

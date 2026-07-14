@@ -15,6 +15,7 @@ import {fileURLToPath} from 'node:url';
 import {CliError, USAGE, parseArgs} from './options.mjs';
 import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
 import {runDoctor} from './doctor.mjs';
+import {offerFetch, runFetch} from './fetch.mjs';
 import {runLyrics} from './lyrics.mjs';
 import {runMenu} from './menu.mjs';
 import {runStill} from './still.mjs';
@@ -88,7 +89,14 @@ const main = async () => {
     return 0;
   }
   if (parsed.command === 'doctor') return runDoctor();
-  if (parsed.command === 'lyrics') return runLyrics(parsed.folder);
+  if (parsed.command === 'fetch') return runFetch(parsed.folder);
+  if (parsed.command === 'lyrics') {
+    const lyricsFolder = path.resolve(parsed.folder);
+    if (fs.existsSync(lyricsFolder) && fs.statSync(lyricsFolder).isDirectory()) {
+      await offerFetch(lyricsFolder);
+    }
+    return runLyrics(parsed.folder);
+  }
   if (parsed.command === 'still') return runStill(parsed);
 
   const {folder: folderArg, output} = parsed;
@@ -105,6 +113,8 @@ const main = async () => {
     throw new CliError(`不是文件夹: ${folder}`);
   }
 
+  // 交互终端下缺音频/歌词先给下载与在线搜索的机会;备齐或非交互时不打扰
+  await offerFetch(folder);
   const {photos, audio, lyrics, videos} = scanFolder(folder);
   if (videos.length > 0) {
     term.warn(`发现视频文件,tsuzuri 目前只处理照片,已忽略: ${videos.join(', ')}`);

@@ -10,10 +10,11 @@ export const USAGE =
   '  tsuzuri still <photo|folder> [选项]         按视频同款视觉导出静态图\n' +
   '  tsuzuri doctor                             检查依赖是否就绪\n' +
   '  tsuzuri lyrics <folder>                    只识别歌词并预览(不渲染)\n' +
+  '  tsuzuri fetch <folder>                     在线获取音频/歌词到素材夹(交互)\n' +
   '  tsuzuri help                               显示本说明(同 -h / --help)\n' +
   `still 选项: ${STILL_OPTIONS}\n` +
   '目录约定:文件夹内放照片(jpg/png/webp)+ 唯一的音频文件(mp3 等)\n' +
-  '若文件夹名恰好叫 doctor / lyrics / still / help,用路径前缀转义,如 tsuzuri ./still';
+  '若文件夹名恰好叫 doctor / lyrics / still / fetch / help,用路径前缀转义,如 tsuzuri ./still';
 
 const parseRenderArgs = (argv) => {
   const args = {command: 'render', folder: null, output: null};
@@ -56,6 +57,21 @@ const parseLyricsArgs = (rest) => {
   }
   if (!args.folder) {
     throw new CliError('用法: tsuzuri lyrics <folder>');
+  }
+  return args;
+};
+
+const parseFetchArgs = (rest) => {
+  const args = {command: 'fetch', folder: null};
+  for (const token of rest) {
+    if (!args.folder && !token.startsWith('-')) {
+      args.folder = token;
+    } else {
+      throw new CliError(`未知参数: ${token}(用法: tsuzuri fetch <folder>)`);
+    }
+  }
+  if (!args.folder) {
+    throw new CliError('用法: tsuzuri fetch <folder>');
   }
   return args;
 };
@@ -110,7 +126,7 @@ const parseStillArgs = (rest) => {
 };
 
 /**
- * A leading token exactly equal to `doctor`, `lyrics`, `still` or `help` is always the verb.
+ * A leading token exactly equal to `doctor`, `lyrics`, `still`, `fetch` or `help` is always the verb.
  * Any path-qualified token (`./lyrics`, `/abs/path`, ...) is not a bare verb
  * string, so it never matches here and falls through to the render command —
  * that's the escape hatch for a folder that happens to be named after a verb.
@@ -119,6 +135,7 @@ export const parseArgs = (argv) => {
   const [first, ...rest] = argv;
   if (first === 'doctor') return parseDoctorArgs(rest);
   if (first === 'lyrics') return parseLyricsArgs(rest);
+  if (first === 'fetch') return parseFetchArgs(rest);
   if (first === 'still') return parseStillArgs(rest);
   if (first === 'help' || first === '-h' || first === '--help') return {command: 'help'};
   return parseRenderArgs(argv);

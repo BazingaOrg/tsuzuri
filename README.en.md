@@ -39,6 +39,7 @@ node cli/tsuzuri.mjs
 node cli/tsuzuri.mjs ./osaka-trip
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4
 node cli/tsuzuri.mjs lyrics ./osaka-trip
+node cli/tsuzuri.mjs fetch ./osaka-trip
 node cli/tsuzuri.mjs still ./photo.jpg
 node cli/tsuzuri.mjs still ./photos --exif --sign --dark
 node cli/tsuzuri.mjs doctor
@@ -51,6 +52,7 @@ Running without arguments opens the interactive menu. The main commands are:
 | --- | --- |
 | `<folder>` | Analyze audio, plan the timeline, and render a video |
 | `lyrics <folder>` | Preview lyric recognition without rendering |
+| `fetch <folder>` | Fetch audio/lyrics into the media folder online (interactive) |
 | `still <photo\|folder>` | Export a matching still PNG |
 | `doctor` | Check local dependencies |
 
@@ -60,6 +62,7 @@ tsuzuri automatically:
 
 - Orders photos by EXIF time when every photo has it, otherwise by filename
 - Uses `.lrc` when present, otherwise local Whisper; instrumental music skips subtitles
+- Offers to fetch missing audio/lyrics online in interactive terminals (same as `fetch`); stays quiet when the folder is complete
 - Adapts cut timing to the photo count and song length, trimming and fading on a downbeat when needed
 - Normalizes output loudness to −14 LUFS (TP −1.5 dB)
 
@@ -70,6 +73,8 @@ Supported images are `.jpg`, `.jpeg`, `.png`, and `.webp`; supported audio files
 Add `tsuzuri.toml` to the media folder to adjust resolution, frame rate, transitions, subtitles, background, intro, and outro.
 
 Analysis output lives under `metadata/`. When the media is unchanged, edit `metadata/timeline.json` and rerun: tsuzuri preserves the hand-edited timeline and skips repeated analysis.
+
+`fetch` is an optional online step: synced lyrics come from [LRCLIB](https://lrclib.net) (no key needed); Chinese lyrics are converted to Simplified Chinese when applicable, while English and Japanese remain unchanged, with a preview before saving as `.lrc`. Audio download relies on a [yt-dlp](https://github.com/yt-dlp/yt-dlp) you install yourself (`brew install yt-dlp`). After downloading, tsuzuri asks you to confirm the song title and artist, then uses `Song - Artist` for the filename and lyric search. Only download content you are entitled to use; skip `fetch` and everything stays local as before.
 
 Analysis and rendering stay local and require no API key. Whisper selects an Apple Silicon, NVIDIA CUDA, or CPU backend automatically; its model is downloaded only on first use.
 
