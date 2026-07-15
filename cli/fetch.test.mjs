@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import {PICK_BACK} from './prompts.mjs';
+
 import {
   buildAudioFilename,
   buildLyricsQuery,
@@ -212,6 +214,33 @@ test('lyrics preview can return to candidates without repeating the network sear
   }
 });
 
+test('lyrics keyword prompt explains enter/back and returns before network access', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  fs.writeFileSync(path.join(folder, 'Yellow - Coldplay.wav'), Buffer.alloc(44));
+  let fetchCount = 0;
+  try {
+    const saved = await lyricsFlow({
+      line: async (text, options) => {
+        assert.equal(text, '歌词搜索关键词');
+        assert.equal(options.defaultValue, 'Yellow Coldplay');
+        assert.equal(options.enterLabel, '搜索');
+        assert.equal(options.allowBack, true);
+        return PICK_BACK;
+      },
+    }, {write: () => {}}, folder, 'Yellow - Coldplay.wav', {
+      fetcher: async () => {
+        fetchCount += 1;
+        return [];
+      },
+    });
+
+    assert.equal(saved, false);
+    assert.equal(fetchCount, 0);
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
+});
+
 test('yt-dlp downloads outside the material folder and safely replaces a same-name audio', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
   const folder = path.join(root, 'material');
@@ -310,7 +339,7 @@ test('next-step guidance follows the final material state', () => {
   assert.equal(buildNextStepMessage('/trip', {photos: ['a.jpg'], audios: []}), null);
 });
 
-test('multiple-audio cleanup deletes only after dangerous confirmation', async () => {
+test('multiple-audio cleanup deletes only after explicit delete action', async () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
   for (const name of ['a.mp3', 'b.m4a']) fs.writeFileSync(path.join(folder, name), name);
   try {
@@ -332,7 +361,12 @@ test('multiple-audio cleanup deletes only after dangerous confirmation', async (
       items: ['a.mp3', 'b.m4a'],
       options: {allowBack: false},
     });
-    assert.deepEqual(calls[1].options, {dangerous: true});
+    assert.deepEqual(calls[1].options, {
+      defaultValue: false,
+      defaultLabel: '取消',
+      alternateKey: 'd',
+      alternateLabel: '删除',
+    });
   } finally {
     fs.rmSync(folder, {recursive: true, force: true});
   }
