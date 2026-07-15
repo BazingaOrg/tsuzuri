@@ -41,6 +41,7 @@ node cli/tsuzuri.mjs ./osaka-trip
 node cli/tsuzuri.mjs
 node cli/tsuzuri.mjs ./osaka-trip
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4
+node cli/tsuzuri.mjs ./osaka-trip --exif --sign --dark
 node cli/tsuzuri.mjs lyrics ./osaka-trip
 node cli/tsuzuri.mjs fetch ./osaka-trip
 node cli/tsuzuri.mjs still ./photo.jpg
@@ -60,7 +61,7 @@ node cli/tsuzuri.mjs help
 | `still <photo\|folder>` | 导出同款静态 PNG |
 | `doctor` | 检查本地依赖 |
 
-`still` 支持 `-o`、`--exif`、`--sign`、`--dark`、`--skip-existing` 和 `--scale <1-4>`；完整用法以 `node cli/tsuzuri.mjs help` 为准。
+`still` 支持 `-o`、`--exif`、`--sign`、`--dark`、`--skip-existing` 和 `--scale <1-4>`；视频渲染同样支持 `--exif`、`--sign`、`--dark`，效果与 still 对齐（渲染时覆盖，不写入 timeline.json），不带 `-o` 时默认输出文件名会追加 `-exif`/`-sign`/`-dark` 变体后缀；完整用法以 `node cli/tsuzuri.mjs help` 为准。
 
 tsuzuri 会自动处理：
 

@@ -11,7 +11,7 @@
 | `width` | `1920` | 输出宽度（px） |
 | `height` | `1080` | 输出高度（px） |
 | `fps` | `60` | 帧率；设为 30 可明显缩短渲染时间 |
-| `background` | `"#FFFFFF"` | 画布底色，支持 `#RGB` / `#RRGGBB`；深色会自动切换配色 |
+| `background` | `"#FFFFFF"` | 画布底色，支持 `#RGB` / `#RRGGBB`；深色会自动切换配色；命令行 `--dark` 可一次性覆盖为黑底 |
 | `photo_scale` | `0.8` | 照片安全框占画布的比例（0–1） |
 
 ## 切换与节奏
@@ -46,7 +46,7 @@
 | `signature` | *内置* | 素材文件夹内签名 SVG 的相对路径 |
 | `intro` | `true` | 片头开关；`false` 时不预留或渲染片头 |
 
-`signature` 同时用于视频片头和 `still --sign`。`--sign` 仍需在命令行显式启用。
+`signature` 同时用于视频片头、`still --sign` 以及视频渲染的 `--sign` 落款。`--sign` 仍需在命令行或菜单中显式启用。
 
 ### 自定义签名 SVG 约束
 

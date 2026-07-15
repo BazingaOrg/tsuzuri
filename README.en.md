@@ -42,6 +42,7 @@ The video is written to `osaka-trip/output/osaka-trip.mp4`. Without an `.lrc`, t
 node cli/tsuzuri.mjs
 node cli/tsuzuri.mjs ./osaka-trip
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4
+node cli/tsuzuri.mjs ./osaka-trip --exif --sign --dark
 node cli/tsuzuri.mjs lyrics ./osaka-trip
 node cli/tsuzuri.mjs fetch ./osaka-trip
 node cli/tsuzuri.mjs still ./photo.jpg
@@ -61,7 +62,7 @@ completion or failure, and `q` exits. Commands with arguments remain one-shot. T
 | `still <photo\|folder>` | Export a matching still PNG |
 | `doctor` | Check local dependencies |
 
-`still` supports `-o`, `--exif`, `--sign`, `--dark`, `--skip-existing`, and `--scale <1-4>`. Run `node cli/tsuzuri.mjs help` for the current full syntax.
+`still` supports `-o`, `--exif`, `--sign`, `--dark`, `--skip-existing`, and `--scale <1-4>`; video rendering supports the same `--exif`, `--sign`, and `--dark` flags, matching still's behavior (applied at render time, never written to timeline.json), and appends an `-exif`/`-sign`/`-dark` suffix to the default output filename when `-o` is omitted. Run `node cli/tsuzuri.mjs help` for the current full syntax.
 
 tsuzuri automatically:
 
