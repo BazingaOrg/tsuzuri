@@ -92,6 +92,7 @@ test('runMenu reports invalid choices and q exits cleanly', async () => {
   const {result, output} = await interact({lines: ['9', 'q']});
   assert.equal(result, null);
   assert.match(output, /无效选择,请输入 1-5/);
+  assert.match(output, /全局: 回车执行默认动作/);
   assert.match(output, /再见/);
 });
 
@@ -122,9 +123,9 @@ test('still accepts a file path and defaults presentation choices to off', async
     });
     assert.deepEqual(result, ['still', file]);
     assert.deepEqual(confirmCalls.map((call) => call.options), [
-      {defaultValue: false},
-      {defaultValue: false},
-      {defaultValue: false},
+      {defaultValue: false, defaultLabel: '不显示', alternateKey: 'e', alternateLabel: '显示'},
+      {defaultValue: false, defaultLabel: '不加入', alternateKey: 's', alternateLabel: '加入'},
+      {defaultValue: false, defaultLabel: '不使用', alternateKey: 'd', alternateLabel: '使用'},
     ]);
   } finally {
     fs.rmSync(root, {recursive: true, force: true});

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {PassThrough} from 'node:stream';
 import test from 'node:test';
 
-import {PICK_BACK, PromptAbortError, withPrompts} from './prompts.mjs';
+import {PICK_BACK, PromptAbortError, PromptQuitError, withPrompts} from './prompts.mjs';
 
 const interact = async (answers, fn) => {
   const input = new PassThrough();
@@ -13,29 +13,35 @@ const interact = async (answers, fn) => {
     text += chunk;
   });
   const resultPromise = withPrompts(fn, {input, output});
+  const observed = resultPromise.then(
+    (result) => ({result}),
+    (error) => ({error}),
+  );
   for (const answer of answers) {
     input.write(`${answer}\n`);
     await new Promise((resolve) => setImmediate(resolve));
   }
-  const result = await resultPromise;
+  const settled = await observed;
   input.end();
-  return {result, output: text};
+  if (settled.error) throw settled.error;
+  return {result: settled.result, output: text};
 };
 
-test('confirm supports a default independent from dangerous', async () => {
-  const {result, output} = await interact(['', '', '', '', 'y', 'n'], async (ask) => [
-    await ask.confirm('继续吗?'),
-    await ask.confirm('删除吗?', {dangerous: true}),
-    await ask.confirm('重试吗?', {defaultValue: false}),
-    await ask.confirm('保守覆盖吗?', {dangerous: true, defaultValue: true}),
-    await ask.confirm('删除吗?', {dangerous: true}),
-    await ask.confirm('继续吗?'),
+test('confirm names the safe default and accepts only its explicit alternate key', async () => {
+  const {result, output} = await interact(['', 'x', 'd', 'r'], async (ask) => [
+    await ask.confirm('歌曲信息正确吗?', {defaultLabel: '确认', alternateKey: 'r', alternateLabel: '修改'}),
+    await ask.confirm('删除其余音频?', {
+      defaultValue: false,
+      defaultLabel: '取消',
+      alternateKey: 'd',
+      alternateLabel: '删除',
+    }),
+    await ask.confirm('歌曲信息正确吗?', {defaultLabel: '确认', alternateKey: 'r', alternateLabel: '修改'}),
   ]);
-  assert.deepEqual(result, [true, false, false, true, true, false]);
-  assert.match(output, /继续吗\? \[回车确认,n=否\]/);
-  assert.match(output, /删除吗\? \[y=是,回车跳过\]/);
-  assert.match(output, /重试吗\? \[y=是,回车跳过\]/);
-  assert.match(output, /保守覆盖吗\? \[回车确认,n=否\]/);
+  assert.deepEqual(result, [true, true, false]);
+  assert.match(output, /歌曲信息正确吗\? \[回车确认,r=修改\]/);
+  assert.match(output, /删除其余音频\? \[回车取消,d=删除\]/);
+  assert.match(output, /无效输入,请直接回车取消,或输入 d 删除/);
 });
 
 test('pick handles invalid input, back, abandon, and a valid item', async () => {
@@ -61,8 +67,38 @@ test('line accepts a default and repeats after validation failure', async () => 
     }),
   );
   assert.equal(result, '/tmp/photos');
-  assert.match(output, /素材路径 \[\/tmp\/photos\]:/);
+  assert.match(output, /素材路径 \[\/tmp\/photos\] · 回车使用默认值:/);
   assert.match(output, /请输入绝对路径/);
+});
+
+test('line shows its enter action and can return without consuming the default', async () => {
+  const {result, output} = await interact(['0'], (ask) =>
+    ask.line('歌词搜索关键词', {
+      defaultValue: 'Yellow Coldplay',
+      enterLabel: '搜索',
+      allowBack: true,
+    }),
+  );
+  assert.equal(result, PICK_BACK);
+  assert.match(output, /歌词搜索关键词 \[Yellow Coldplay\] · 回车搜索 · 0 返回:/);
+});
+
+test('q exits globally from line, confirm, and pick prompts', async () => {
+  await assert.rejects(interact(['q'], (ask) => ask.line('输入')), PromptQuitError);
+  await assert.rejects(interact(['q'], (ask) => ask.confirm('继续吗?')), PromptQuitError);
+  await assert.rejects(interact(['q'], (ask) => ask.pick('选择', ['甲'])), PromptQuitError);
+});
+
+test('q unwinds caller cleanup before exiting', async () => {
+  let cleaned = false;
+  await assert.rejects(interact(['q'], async (ask) => {
+    try {
+      await ask.line('等待输入');
+    } finally {
+      cleaned = true;
+    }
+  }), PromptQuitError);
+  assert.equal(cleaned, true);
 });
 
 test('EOF rejects with PromptAbortError so caller finally blocks can run', async () => {

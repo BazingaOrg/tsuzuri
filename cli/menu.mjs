@@ -7,7 +7,7 @@
 import os from 'node:os';
 import fs from 'node:fs';
 
-import {withPrompts} from './prompts.mjs';
+import {withPrompts, writeGlobalPromptHelp} from './prompts.mjs';
 import {term} from './term.mjs';
 
 export const MENU_ITEMS = [
@@ -71,10 +71,14 @@ export const runMenu = async (
     output.write('\n');
     for (const item of MENU_ITEMS) output.write(`  ${item.key}. ${item.label}\n`);
     output.write('\n');
+    writeGlobalPromptHelp(output);
+    output.write('\n');
 
     let item;
     for (;;) {
-      const choice = await ask.line(`输入序号 [1-${MENU_ITEMS.length}],或 q 退出`);
+      const choice = await ask.line(`输入序号 [1-${MENU_ITEMS.length}],或 q 退出`, {
+        allowQuit: false,
+      });
       if (choice.toLowerCase() === 'q') {
         output.write('再见\n');
         return null;
@@ -104,9 +108,15 @@ export const runMenu = async (
     let sign = false;
     let dark = false;
     if (item.key === '2') {
-      exif = await ask.confirm('显示 EXIF 拍摄参数和相机信息?', {defaultValue: false});
-      sign = await ask.confirm('加入签名落款,用于作品署名?', {defaultValue: false});
-      dark = await ask.confirm('使用黑色背景,适合暗色展陈?', {defaultValue: false});
+      exif = await ask.confirm('显示 EXIF 拍摄参数和相机信息?', {
+        defaultValue: false, defaultLabel: '不显示', alternateKey: 'e', alternateLabel: '显示',
+      });
+      sign = await ask.confirm('加入签名落款,用于作品署名?', {
+        defaultValue: false, defaultLabel: '不加入', alternateKey: 's', alternateLabel: '加入',
+      });
+      dark = await ask.confirm('使用黑色背景,适合暗色展陈?', {
+        defaultValue: false, defaultLabel: '不使用', alternateKey: 'd', alternateLabel: '使用',
+      });
     }
 
     const argv = buildArgvFromChoices({choice: item.key, target, exif, sign, dark});

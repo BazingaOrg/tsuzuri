@@ -1,6 +1,7 @@
 import readline from 'node:readline';
 
 export const PICK_BACK = Symbol('pick-back');
+export const GLOBAL_PROMPT_HELP = '全局: 回车执行默认动作 · 0 返回(可用时) · q 退出 · Ctrl+C 中断';
 
 export class PromptAbortError extends Error {
   constructor() {
@@ -10,8 +11,19 @@ export class PromptAbortError extends Error {
   }
 }
 
-const isYes = (answer) => /^y(es)?$/i.test(String(answer ?? '').trim());
-const isNo = (answer) => /^n(o)?$/i.test(String(answer ?? '').trim());
+export class PromptQuitError extends Error {
+  constructor() {
+    super('用户退出');
+    this.name = 'PromptQuitError';
+    this.exitCode = 0;
+  }
+}
+
+export const writeGlobalPromptHelp = (output = process.stdout) => {
+  output.write(`${GLOBAL_PROMPT_HELP}\n`);
+};
+
+const isQuit = (answer) => String(answer ?? '').trim().toLowerCase() === 'q';
 
 /**
  * 共享交互问答层。SIGINT 与输入流提前关闭都按用户放弃处理,退出码为 130。
@@ -48,11 +60,24 @@ export const withPrompts = async (
   };
 
   const ask = {
-    async confirm(text, {dangerous = false, defaultValue = !dangerous} = {}) {
-      const suffix = defaultValue ? '[回车确认,n=否]' : '[y=是,回车跳过]';
-      const answer = (await question(`${text} ${suffix} `)).trim();
-      if (!answer) return defaultValue;
-      return isYes(answer) ? true : isNo(answer) ? false : defaultValue;
+    async confirm(
+      text,
+      {
+        defaultValue = true,
+        defaultLabel = defaultValue ? '确认' : '取消',
+        alternateKey = defaultValue ? 'n' : 'y',
+        alternateLabel = defaultValue ? '取消' : '执行',
+      } = {},
+    ) {
+      for (;;) {
+        const answer = (await question(
+          `${text} [回车${defaultLabel},${alternateKey}=${alternateLabel}]: `,
+        )).trim();
+        if (isQuit(answer)) throw new PromptQuitError();
+        if (!answer) return defaultValue;
+        if (answer.toLowerCase() === alternateKey.toLowerCase()) return !defaultValue;
+        output.write(`无效输入,请直接回车${defaultLabel},或输入 ${alternateKey} ${alternateLabel}\n`);
+      }
     },
 
     async pick(text, items, {allowBack = true} = {}) {
@@ -65,6 +90,7 @@ export const withPrompts = async (
             `${text} [1-${items.length}],${allowBack ? '0 返回上一步,' : ''}回车放弃: `,
           )
         ).trim();
+        if (isQuit(answer)) throw new PromptQuitError();
         if (!answer) return null;
         if (allowBack && answer === '0') return PICK_BACK;
         if (/^\d+$/.test(answer)) {
@@ -77,11 +103,20 @@ export const withPrompts = async (
       }
     },
 
-    async line(text, {defaultValue, validate} = {}) {
+    async line(
+      text,
+      {defaultValue, validate, allowBack = false, allowQuit = true, enterLabel} = {},
+    ) {
       const hasDefault = defaultValue !== undefined && defaultValue !== null;
-      const prompt = `${text}${hasDefault ? ` [${defaultValue}]` : ''}: `;
+      const actions = [];
+      if (hasDefault) actions.push(`回车${enterLabel ?? '使用默认值'}`);
+      if (allowBack) actions.push('0 返回');
+      const prompt = `${text}${hasDefault ? ` [${defaultValue}]` : ''}` +
+        `${actions.length > 0 ? ` · ${actions.join(' · ')}` : ''}: `;
       for (;;) {
         const answer = (await question(prompt)).trim();
+        if (allowQuit && isQuit(answer)) throw new PromptQuitError();
+        if (allowBack && answer === '0') return PICK_BACK;
         const value = answer || (hasDefault ? String(defaultValue) : '');
         const result = validate ? await validate(value) : true;
         if (result === true || result === undefined) return value;

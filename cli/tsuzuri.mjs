@@ -18,7 +18,7 @@ import {runDoctor} from './doctor.mjs';
 import {offerFetch, runFetch} from './fetch.mjs';
 import {runLyrics} from './lyrics.mjs';
 import {runMenu} from './menu.mjs';
-import {PromptAbortError} from './prompts.mjs';
+import {PromptAbortError, PromptQuitError} from './prompts.mjs';
 import {runStill} from './still.mjs';
 import {term} from './term.mjs';
 import {FIXES} from './dependencies.mjs';
@@ -78,13 +78,7 @@ const normalizeLoudness = (file) => {
   term.detail(`${measured.toFixed(1)} → ${TARGET_LUFS} LUFS(真峰值 ≤ ${TARGET_TP}dB)`);
 };
 
-const main = async () => {
-  let argv = process.argv.slice(2);
-  // 裸跑 + 交互终端 → 数字菜单;管道/脚本里仍走 USAGE 报错,不破坏可脚本性
-  if (argv.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
-    argv = await runMenu();
-    if (argv === null) return 0;
-  }
+export const runCommandFromArgv = async (argv) => {
   const parsed = parseArgs(argv);
   if (parsed.command === 'help') {
     console.log(USAGE);
@@ -206,18 +200,57 @@ const main = async () => {
   return 0;
 };
 
+const reportCliError = (error) => {
+  term.error(`tsuzuri: ${error instanceof Error ? error.message : String(error)}`);
+  if ((process.env.TSUZURI_DEBUG === '1' || process.env.DEBUG === '1') && error instanceof Error && error.stack) {
+    term.detail(error.stack);
+  }
+};
+
+export const runInteractiveMenu = async (
+  {
+    menuRunner = runMenu,
+    commandRunner = runCommandFromArgv,
+    onError = reportCliError,
+    output = process.stdout,
+  } = {},
+) => {
+  for (;;) {
+    try {
+      const argv = await menuRunner();
+      if (argv === null) return 0;
+      const code = await commandRunner(argv);
+      if (code !== 0) term.warn(`流程以退出码 ${code} 结束`);
+    } catch (error) {
+      if (error instanceof PromptQuitError) {
+        output.write('再见\n');
+        return 0;
+      }
+      if (error instanceof PromptAbortError) throw error;
+      onError(error);
+    }
+    output.write('\n返回主菜单\n\n');
+  }
+};
+
+const main = async () => {
+  const argv = process.argv.slice(2);
+  // 裸跑 + 交互终端 → 常驻数字菜单;管道/脚本里仍走 USAGE 报错,不破坏可脚本性
+  if (argv.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
+    return runInteractiveMenu();
+  }
+  return runCommandFromArgv(argv);
+};
+
 const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   try {
     process.exitCode = await main();
   } catch (error) {
-    if (error instanceof PromptAbortError) {
+    if (error instanceof PromptAbortError || error instanceof PromptQuitError) {
       process.exitCode = error.exitCode;
     } else {
-      term.error(`tsuzuri: ${error instanceof Error ? error.message : String(error)}`);
-      if ((process.env.TSUZURI_DEBUG === '1' || process.env.DEBUG === '1') && error instanceof Error && error.stack) {
-        term.detail(error.stack);
-      }
+      reportCliError(error);
       process.exitCode = 1;
     }
   }
