@@ -50,7 +50,8 @@ node cli/tsuzuri.mjs doctor
 node cli/tsuzuri.mjs help
 ```
 
-Running without arguments opens the interactive menu. The main commands are:
+Running without arguments opens a persistent interactive menu: each command returns to the menu after
+completion or failure, and `q` exits. Commands with arguments remain one-shot. The main commands are:
 
 | Command | Purpose |
 | --- | --- |
@@ -92,7 +93,10 @@ node cli/tsuzuri.mjs fetch ./osaka-trip
 4. [LRCLIB](https://lrclib.net) searches synced lyrics using the song metadata and audio duration; candidates more than three seconds away are flagged.
 5. Page through all timestamped lyrics before saving them in `audio/`; Chinese is converted to Simplified Chinese when applicable, while English and Japanese stay unchanged.
 
-In interactive lists, enter a number to select. Where a back option is shown, use `0` to go back; press Enter to abandon the current subflow. Optional network steps and destructive actions default to skip; reviewed song information can be confirmed with Enter.
+Interactive entry points show a global key guide: Enter performs the safe default action named by the
+current prompt, `0` goes back where available, `q` exits tsuzuri from any prompt, and Ctrl+C interrupts.
+Other actions use the letter shown by the prompt; unknown keys are rejected instead of silently confirming
+or cancelling.
 
 Audio download requires a [yt-dlp](https://github.com/yt-dlp/yt-dlp) you install yourself
 (`brew install yt-dlp` on macOS); `fetch` checks it only when download is used. Existing lyrics are never
