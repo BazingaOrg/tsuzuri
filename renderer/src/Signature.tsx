@@ -23,6 +23,13 @@ export type SignatureData = {
   paths: SignaturePathSpec[];
 };
 
+/** 按 viewBox 比例计算落款实际宽度,并受布局上限约束。 */
+export const getSignatureDisplayWidth = (
+  data: SignatureData,
+  height: number,
+  maxWidth: number,
+): number => Math.min(height * (data.viewBox.width / data.viewBox.height), maxWidth);
+
 /** 内置签名:单 path + 常量长度,不 fetch,保证默认输出逐帧一致。 */
 export const BUILTIN_SIGNATURE: SignatureData = {
   viewBox: {...SIGNATURE_VIEWBOX},

@@ -1,3 +1,5 @@
+import type {StillExif} from './ExifPanel';
+
 export type TransitionSpec = {
   type: 'album' | 'crossfade' | 'cut' | 'none';
   duration: number; // seconds; cut/none 为 0
@@ -19,6 +21,8 @@ export type PhotoClip = {
   transition: TransitionSpec;
   /** @deprecated 仅供 timeline v1 兼容;渲染时为 no-op。 */
   motion: MotionSpec;
+  /** 渲染时覆盖注入的 EXIF 展签数据;无内容或未开启 --exif 时为空 */
+  exif?: StillExif | null;
 };
 
 export type SubtitleLine = {
@@ -50,6 +54,8 @@ export type TimelineMeta = {
   photo_scale: number;
   input_hash?: string;
   branding?: Branding;
+  /** 渲染时覆盖注入的照片签名落款开关;缺省 false */
+  sign?: boolean;
 };
 
 export type Timeline = {

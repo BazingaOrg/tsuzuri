@@ -36,8 +36,9 @@ export const Subtitle: React.FC<{
   line: SubtitleLine;
   scale: number;
   bandCenterFromBottom: number; // 照片安全框下缘到画布底部的带状区域中心,距底 px
+  sideInset?: number; // 左右对称预留,避免长字幕与右下角落款交叠
   palette: Palette;
-}> = ({line, scale, bandCenterFromBottom, palette}) => {
+}> = ({line, scale, bandCenterFromBottom, sideInset = 0, palette}) => {
   const frame = useCurrentFrame();
   const {fps, width} = useVideoConfig();
   const t = frame / fps;
@@ -64,7 +65,7 @@ export const Subtitle: React.FC<{
   const units = fullwidthLength(line.text);
   const baseSize = SUBTITLE.fontSize * scale;
   const estWidth = baseSize * (units + line.text.length * spacingEm);
-  const maxWidth = width * 0.86;
+  const maxWidth = Math.min(width * 0.86, Math.max(1, width - sideInset * 2));
   const fontSize = estWidth > maxWidth ? baseSize * (maxWidth / estWidth) : baseSize;
 
   // 行框(lineHeight 1)垂直居中于照片下缘与画布底部之间的带状区域

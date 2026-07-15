@@ -10,9 +10,10 @@ import {
 import './fonts';
 import {Intro, introDuration} from './Intro';
 import {Outro} from './Outro';
-import {Photo} from './Photo';
+import {Photo, hasDisplayableExif} from './Photo';
+import {getSignatureDisplayWidth, useSignatureData} from './Signature';
 import {Subtitle} from './Subtitle';
-import {ANIMATION, INTRO, OUTRO, SUBTITLE, getPalette} from './theme';
+import {ANIMATION, INTRO, OUTRO, STILL, SUBTITLE, getPalette} from './theme';
 import {getFadeDuration} from './transition';
 import type {PhotoClip, Timeline} from './types';
 
@@ -77,6 +78,25 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
       ? 0
       : interpolate(whiteFade, [...OUTRO.fadeRange], [0, 1], clamp);
   const signatureSrc = meta.branding?.signature?.replace(/^\.\//, '');
+  // 照片落款:hook 不能按 clip 条件调用,统一在 Diary 层调用一次;sign 关闭时不传给 Photo
+  const photoSignature = useSignatureData(meta.sign ? signatureSrc : undefined);
+  const bottomSignatureVisible = Boolean(
+    meta.sign &&
+      photoSignature &&
+      visiblePhotos.some(({clip}) => !hasDisplayableExif(clip.exif)),
+  );
+  const signatureWidth = photoSignature
+    ? getSignatureDisplayWidth(
+        photoSignature,
+        STILL.signature.height * scale,
+        meta.width * STILL.signature.maxWidthRatio,
+      )
+    : 0;
+  const subtitleSideInset = bottomSignatureVisible
+    ? STILL.signature.rightInset * scale +
+      signatureWidth +
+      STILL.signature.subtitleGap * scale
+    : 0;
 
   return (
     <AbsoluteFill style={{backgroundColor: meta.background}}>
@@ -92,6 +112,10 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
           safeWidth={safeWidth}
           safeHeight={safeHeight}
           palette={palette}
+          canvasWidth={meta.width}
+          canvasHeight={meta.height}
+          sign={meta.sign}
+          signature={meta.sign ? photoSignature : undefined}
         />
       ))}
       {visibleSubtitles.map((l) => (
@@ -100,6 +124,7 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
           line={l}
           scale={scale}
           bandCenterFromBottom={bandCenterFromBottom}
+          sideInset={subtitleSideInset}
           palette={palette}
         />
       ))}

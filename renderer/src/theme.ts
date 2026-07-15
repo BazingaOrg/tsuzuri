@@ -155,6 +155,9 @@ export const STILL = {
     panelHeight: 44,
     bottomInset: 26,
     opacity: 0.65,
+    rightInset: 48, // 右下角落款距右边距(px,1080p 基准)
+    maxWidthRatio: 0.26, // 落款最大宽度 = 画布宽度 × 该比例,保留印章/钤印比例
+    subtitleGap: 24, // 落款与字幕的最小水平间距(px,1080p 基准)
   },
   typography: {
     // 参数行为视觉主角(字号同字幕 36);相机/镜头次之;时间最小用 INFO_BAR 灰

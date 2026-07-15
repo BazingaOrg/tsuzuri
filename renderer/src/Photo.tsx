@@ -1,13 +1,18 @@
 import React from 'react';
 import {AbsoluteFill, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {ExifPanel} from './ExifPanel';
 import {FramedPhoto} from './FramedPhoto';
+import {Signature, getSignatureDisplayWidth, type SignatureData} from './Signature';
+import {STILL, type Palette} from './theme';
 import {getFadeDuration} from './transition';
-import type {Palette} from './theme';
 import type {PhotoClip} from './types';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
 
 const toStatic = (src: string) => staticFile(src.replace(/^\.\//, ''));
+
+export const hasDisplayableExif = (exif: PhotoClip['exif']): boolean =>
+  Boolean(exif && (exif.camera || exif.lens || exif.params?.length || exif.datetime));
 
 /**
  * 单页照片:画布背景 + 居中安全框 + 中性展陈光影。
@@ -19,7 +24,11 @@ export const Photo: React.FC<{
   safeWidth: number;
   safeHeight: number;
   palette: Palette;
-}> = ({clip, backgroundColor, safeWidth, safeHeight, palette}) => {
+  canvasWidth: number;
+  canvasHeight: number;
+  sign?: boolean;
+  signature?: SignatureData | null;
+}> = ({clip, backgroundColor, safeWidth, safeHeight, palette, canvasWidth, canvasHeight, sign = false, signature}) => {
   const frame = useCurrentFrame();
   const {fps, height} = useVideoConfig();
   const t = frame / fps;
@@ -32,6 +41,88 @@ export const Photo: React.FC<{
         ? 1
         : 0;
   const renderScale = height / 1080;
+
+  const hasExif = hasDisplayableExif(clip.exif);
+
+  // 带 EXIF 展签:照片左 + 展签右,整体居中,与 Still withExif 分支同款布局
+  if (hasExif) {
+    const layout = STILL.withExif;
+    const photoMaxW = canvasWidth * layout.photoMaxWidth;
+    const photoMaxH = canvasHeight * layout.photoMaxHeight;
+    const panelW = canvasWidth * layout.panelWidth;
+    const gap = canvasWidth * layout.gap;
+    return (
+      <AbsoluteFill
+        style={{
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor,
+          opacity: fadeIn,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap,
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }}
+        >
+          <FramedPhoto
+            src={toStatic(clip.src)}
+            maxWidth={photoMaxW}
+            maxHeight={photoMaxH}
+            renderScale={renderScale}
+            palette={palette}
+          />
+          <ExifPanel exif={clip.exif!} scale={renderScale} width={panelW} sign={sign} signature={signature ?? null} palette={palette} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // 无展签但开启签名落款:退居画布右下角,并为字幕预留安全区
+  if (sign && signature) {
+    const signatureHeight = STILL.signature.height * renderScale;
+    const signatureWidth = getSignatureDisplayWidth(
+      signature,
+      signatureHeight,
+      canvasWidth * STILL.signature.maxWidthRatio,
+    );
+    return (
+      <AbsoluteFill
+        style={{
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor,
+          opacity: fadeIn,
+        }}
+      >
+        <FramedPhoto
+          src={toStatic(clip.src)}
+          maxWidth={safeWidth}
+          maxHeight={safeHeight}
+          renderScale={renderScale}
+          palette={palette}
+        />
+        {/* 视频底部中线让给字幕带,落款按摄影钤印惯例退居右下(still 无字幕,维持居中,Still.tsx 不动) */}
+        <div
+          style={{
+            position: 'absolute',
+            right: STILL.signature.rightInset * renderScale,
+            bottom: STILL.signature.bottomInset * renderScale,
+            display: 'flex',
+            color: palette.text,
+            opacity: STILL.signature.opacity,
+          }}
+        >
+          <Signature data={signature} style={{width: signatureWidth, height: signatureHeight}} pathProps={{fill: 'currentColor'}} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill
