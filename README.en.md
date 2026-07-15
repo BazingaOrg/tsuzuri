@@ -87,16 +87,21 @@ exports share the same canvas, typography, photo, and palette system.
 node cli/tsuzuri.mjs fetch ./osaka-trip
 ```
 
-1. When audio is missing, enter a video URL you are entitled to use, or choose from five yt-dlp search results.
+1. In the explicit `fetch` entry, Enter defaults to downloading missing audio and searching missing lyrics
+   (the automatic offer before rendering still defaults to skipping). Enter a video URL you are entitled to
+   use, or choose from five yt-dlp search results—Enter downloads the first one.
 2. If the folder has multiple audio files, choose one to keep. The others are deleted only after confirmation; cancelling changes nothing.
-3. Enter the song title and optional artist after download; tsuzuri names it `audio/Song - Artist.ext`. The video title is reference-only, and replacing existing audio requires confirmation.
+3. Confirm the song title and optional artist after download (prefilled from the source title and audio tags,
+   Enter accepts them); tsuzuri names it `audio/Song - Artist.ext`. Replacing existing audio requires confirmation.
 4. [LRCLIB](https://lrclib.net) searches synced lyrics using the song metadata and audio duration; candidates more than three seconds away are flagged.
-5. Page through all timestamped lyrics before saving them in `audio/`; Chinese is converted to Simplified Chinese when applicable, while English and Japanese stay unchanged.
+5. Enter previews the first lyric candidate by default. Page through all timestamps before
+   confirming the save to `audio/`; Chinese is converted to Simplified Chinese when applicable, while English
+   and Japanese stay unchanged.
 
-Interactive entry points show a global key guide: Enter performs the safe default action named by the
-current prompt, `0` goes back where available, `q` exits tsuzuri from any prompt, and Ctrl+C interrupts.
-Other actions use the letter shown by the prompt; unknown keys are rejected instead of silently confirming
-or cancelling.
+Every prompt starts with a cyan `?` and lists its own keys (uniformly `key action`, separated by ` · `):
+Enter performs the safe default action named by the prompt, `0` goes back where available, `q` exits
+tsuzuri from any prompt, and Ctrl+C interrupts. Unknown keys are rejected instead of silently confirming
+or cancelling. At a menu path prompt, press Enter on an empty line to return to the menu.
 
 Audio download requires a [yt-dlp](https://github.com/yt-dlp/yt-dlp) you install yourself
 (`brew install yt-dlp` on macOS); `fetch` checks it only when download is used. Existing lyrics are never
