@@ -4,6 +4,8 @@ const COLORS = {
   success: '32',
   warn: '33',
   error: '31',
+  prompt: '36',
+  dim: '2',
 };
 
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -12,6 +14,17 @@ export const ansiEnabled = (stream, env = process.env) =>
   Boolean(stream?.isTTY) &&
   !hasOwn(env, 'NO_COLOR') &&
   String(env.TERM ?? '').toLowerCase() !== 'dumb';
+
+/** 按 ansiEnabled 决定是否包 ANSI;交互提示与状态输出共用同一套降级判断。 */
+export const paint = (kind, text, stream = process.stdout, env = process.env) =>
+  ansiEnabled(stream, env) ? `\x1b[${COLORS[kind]}m${text}\x1b[0m` : text;
+
+export const dim = (text, stream = process.stdout, env = process.env) =>
+  paint('dim', text, stream, env);
+
+/** 提问行前缀:cyan `?`,让"等输入"与"● 输出结果"一眼可分。 */
+export const promptPrefix = (stream = process.stdout, env = process.env) =>
+  paint('prompt', '?', stream, env);
 
 const linesOf = (message) => {
   const lines = String(message).split(/\r?\n/);

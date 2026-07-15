@@ -17,7 +17,7 @@ import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths
 import {runDoctor} from './doctor.mjs';
 import {offerFetch, runFetch} from './fetch.mjs';
 import {runLyrics} from './lyrics.mjs';
-import {runMenu} from './menu.mjs';
+import {MENU_BACK, runMenu, writeBanner, writeFarewell} from './menu.mjs';
 import {PromptAbortError, PromptQuitError} from './prompts.mjs';
 import {runStill} from './still.mjs';
 import {term} from './term.mjs';
@@ -219,11 +219,15 @@ export const runInteractiveMenu = async (
     try {
       const argv = await menuRunner();
       if (argv === null) return 0;
+      if (argv === MENU_BACK) {
+        output.write('\n返回主菜单\n\n');
+        continue;
+      }
       const code = await commandRunner(argv);
       if (code !== 0) term.warn(`流程以退出码 ${code} 结束`);
     } catch (error) {
       if (error instanceof PromptQuitError) {
-        output.write('再见\n');
+        writeFarewell(output);
         return 0;
       }
       if (error instanceof PromptAbortError) throw error;
@@ -237,6 +241,7 @@ const main = async () => {
   const argv = process.argv.slice(2);
   // 裸跑 + 交互终端 → 常驻数字菜单;管道/脚本里仍走 USAGE 报错,不破坏可脚本性
   if (argv.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
+    writeBanner();
     return runInteractiveMenu();
   }
   return runCommandFromArgv(argv);

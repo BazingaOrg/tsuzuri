@@ -7,8 +7,8 @@
 import os from 'node:os';
 import fs from 'node:fs';
 
-import {withPrompts, writeGlobalPromptHelp} from './prompts.mjs';
-import {term} from './term.mjs';
+import {PICK_BACK, withPrompts} from './prompts.mjs';
+import {paint, term} from './term.mjs';
 
 export const MENU_ITEMS = [
   {key: '1', label: '渲染相册视频', pathPrompt: '素材文件夹'},
@@ -17,6 +17,27 @@ export const MENU_ITEMS = [
   {key: '4', label: '检查依赖(doctor)', pathPrompt: null},
   {key: '5', label: '获取音频/歌词到素材夹(fetch)', pathPrompt: '素材文件夹'},
 ];
+export const MENU_BACK = Symbol('menu-back');
+
+// 极简 ASCII(不用方框):规避全角字符在窄/等宽异常终端的对齐错位
+const BANNER = [
+  '  /\\_/\\   tsuzuri 綴',
+  ' ( ·ᴥ· )  把照片和一首歌缀成影像日记',
+];
+const FAREWELL = [
+  '  /\\_/\\',
+  ' ( -ᴥ- )  晚安。素材都在原文件夹,随时再来。',
+];
+
+/** 只在裸命令进入交互菜单时打印;直接命令/管道绝不打印,保持可脚本性。 */
+export const writeBanner = (output = process.stdout) => {
+  output.write(`${BANNER.map((line) => paint('start', line, output)).join('\n')}\n\n`);
+};
+
+/** 只在从菜单 q 正常退出时打印。 */
+export const writeFarewell = (output = process.stdout) => {
+  output.write(`${FAREWELL.map((line) => paint('start', line, output)).join('\n')}\n`);
+};
 
 /**
  * 规整拖拽/手输路径。macOS 拖拽会反斜杠转义空格与括号(`My\ Photos`),
@@ -67,20 +88,17 @@ export const runMenu = async (
   {input = process.stdin, output = process.stdout, promptRunner = withPrompts} = {},
 ) => {
   return promptRunner(async (ask) => {
-    term.info('tsuzuri — 把照片和一首歌缀成影像日记');
-    output.write('\n');
     for (const item of MENU_ITEMS) output.write(`  ${item.key}. ${item.label}\n`);
-    output.write('\n');
-    writeGlobalPromptHelp(output);
     output.write('\n');
 
     let item;
     for (;;) {
-      const choice = await ask.line(`输入序号 [1-${MENU_ITEMS.length}],或 q 退出`, {
+      const choice = await ask.line('选择操作', {
         allowQuit: false,
+        legend: [`1-${MENU_ITEMS.length} 选择`, 'q 退出'],
       });
       if (choice.toLowerCase() === 'q') {
-        output.write('再见\n');
+        writeFarewell(output);
         return null;
       }
       item = MENU_ITEMS.find((i) => i.key === choice);
@@ -90,7 +108,8 @@ export const runMenu = async (
 
     let target = null;
     if (item.pathPrompt) {
-      const rawTarget = await ask.line(`输入${item.pathPrompt}路径,或拖入后回车`, {
+      const rawTarget = await ask.line(`拖入或输入「${item.pathPrompt}」路径`, {
+        emptyBack: true,
         validate: (value) => {
           const normalized = normalizeDroppedPath(value);
           if (!normalized) return '路径不能为空';
@@ -101,6 +120,7 @@ export const runMenu = async (
           return true;
         },
       });
+      if (rawTarget === PICK_BACK) return MENU_BACK;
       target = normalizeDroppedPath(rawTarget);
     }
 

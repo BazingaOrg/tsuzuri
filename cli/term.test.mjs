@@ -18,7 +18,7 @@ import {fileURLToPath} from 'node:url';
 import {parseArgs} from './options.mjs';
 import {createPercentProgress} from './progress.mjs';
 import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths} from './project.mjs';
-import {createTerminal} from './term.mjs';
+import {createTerminal, dim, paint, promptPrefix} from './term.mjs';
 
 const stream = (isTTY) => ({
   isTTY,
@@ -60,6 +60,19 @@ test('color decision follows the destination stream', () => {
 
   assert.match(stdout.output, /^\x1b\[/);
   assert.equal(stderr.output, '● stderr\n');
+});
+
+test('prompt helpers color only on an ANSI-capable destination', () => {
+  const tty = stream(true);
+  const plain = stream(false);
+  const env = {TERM: 'xterm-256color'};
+
+  assert.equal(paint('start', '开始', tty, env), '\x1b[38;2;217;119;87m开始\x1b[0m');
+  assert.equal(dim('图例', tty, env), '\x1b[2m图例\x1b[0m');
+  assert.equal(promptPrefix(tty, env), '\x1b[36m?\x1b[0m');
+  assert.equal(promptPrefix(plain, env), '?');
+  assert.equal(dim('图例', tty, {...env, NO_COLOR: ''}), '图例');
+  assert.equal(paint('start', '开始', tty, {TERM: 'dumb'}), '开始');
 });
 
 for (const [name, isTTY, env] of [

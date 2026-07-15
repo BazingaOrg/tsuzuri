@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {PassThrough} from 'node:stream';
 import test from 'node:test';
 
 import {PICK_BACK} from './prompts.mjs';
+import {term} from './term.mjs';
 
 import {
   buildAudioFilename,
@@ -29,9 +31,34 @@ import {
   planOffers,
   probeAudio,
   preferSimplifiedChineseLrc,
+  runFetch,
   sanitizeFilePart,
   searchLyricsRecords,
 } from './fetch.mjs';
+
+const runFetchWithAnswers = async (folder, answers) => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let text = '';
+  output.setEncoding('utf8');
+  output.on('data', (chunk) => { text += chunk; });
+  // 静音 term 的状态输出:异步写 process.stdout 会与 node:test 的报告流交错
+  const silenced = ['info', 'start', 'success', 'warn', 'error', 'detail'];
+  const originals = Object.fromEntries(silenced.map((k) => [k, term[k]]));
+  for (const k of silenced) term[k] = () => {};
+  try {
+    const pending = runFetch(folder, {input, output});
+    for (const answer of answers) {
+      input.write(`${answer}\n`);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    const code = await pending;
+    input.end();
+    return {code, output: text};
+  } finally {
+    Object.assign(term, originals);
+  }
+};
 
 test('parseSearchLine splits yt-dlp print output and tolerates NA fields', () => {
   assert.deepEqual(parseSearchLine('abc123\t晴天 (官方MV)\t4:29\t周杰倫'), {
@@ -190,8 +217,9 @@ test('lyrics preview can return to candidates without repeating the network sear
   try {
     const saved = await lyricsFlow({
       line: async (text) => text === '歌词搜索关键词' ? 'song' : previewActions.shift(),
-      pick: async () => {
+      pick: async (_text, _items, options) => {
         pickCount += 1;
+        assert.deepEqual(options, {defaultIndex: 0, enterLabel: '预览'});
         return {index: 0};
       },
       confirm: async () => true,
@@ -209,6 +237,30 @@ test('lyrics preview can return to candidates without repeating the network sear
     assert.equal(fetchCount, 1);
     assert.equal(pickCount, 2);
     assert.equal(fs.readFileSync(path.join(folder, 'audio', 'song.lrc'), 'utf8'), syncedLyrics);
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
+});
+
+test('multiple lyric candidates default to previewing the first on enter', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  fs.writeFileSync(path.join(folder, 'song.wav'), Buffer.alloc(44));
+  const record = (name) => ({
+    trackName: name, artistName: 'Artist', duration: 13,
+    syncedLyrics: '[00:01.00]行', instrumental: false,
+  });
+  try {
+    const saved = await lyricsFlow({
+      line: async () => 'song',
+      pick: async (_text, items, options) => {
+        assert.equal(items.length, 2);
+        assert.deepEqual(options, {defaultIndex: 0, enterLabel: '预览第1个'});
+        return null;
+      },
+    }, {write: () => {}}, folder, 'song.wav', {
+      fetcher: async () => [record('A'), record('B')],
+    });
+    assert.equal(saved, false);
   } finally {
     fs.rmSync(folder, {recursive: true, force: true});
   }
@@ -390,6 +442,30 @@ test('parseCurlResponse splits body from the trailing status code', () => {
   assert.equal(parseCurlResponse('no-status-line'), null);
   assert.equal(parseCurlResponse(''), null);
   assert.equal(parseCurlResponse('body\nabc'), null);
+});
+
+test('explicit fetch defaults to downloading when the folder has no audio', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  try {
+    const {code, output} = await runFetchWithAnswers(folder, ['s']);
+    assert.equal(code, 0);
+    assert.match(output, /\? 文件夹里没有音频,现在下载\? · 回车 下载 · s 跳过: /);
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
+});
+
+test('explicit fetch defaults to searching lyrics when audio exists without an .lrc', async () => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
+  fs.writeFileSync(path.join(folder, 'song.wav'), Buffer.alloc(44));
+  try {
+    const {code, output} = await runFetchWithAnswers(folder, ['', 's']);
+    assert.equal(code, 0);
+    assert.match(output, /\? 已有 song\.wav,重新下载并替换\? · 回车 保留 · r 重新下载: /);
+    assert.match(output, /\? 没有 \.lrc,在线搜索同步歌词\? · 回车 搜索 · s 跳过: /);
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
 });
 
 test('checkYtDlp reports missing binary without throwing', () => {

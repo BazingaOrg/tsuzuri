@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {PromptAbortError, PromptQuitError} from './prompts.mjs';
+import {MENU_BACK} from './menu.mjs';
 import {runInteractiveMenu} from './tsuzuri.mjs';
 
 test('interactive menu runs consecutive commands until the user exits', async () => {
@@ -36,12 +37,25 @@ test('a command error is reported and does not exit the interactive menu', async
   assert.deepEqual(errors, ['找不到路径']);
 });
 
+test('back from a menu question redraws the menu without running a command', async () => {
+  const choices = [MENU_BACK, null];
+  let commandCount = 0;
+  assert.equal(await runInteractiveMenu({
+    menuRunner: async () => choices.shift(),
+    commandRunner: async () => { commandCount += 1; },
+    output: {write: () => {}},
+  }), 0);
+  assert.equal(commandCount, 0);
+});
+
 test('q exits the whole interactive menu while Ctrl+C remains an interruption', async () => {
+  let output = '';
   assert.equal(await runInteractiveMenu({
     menuRunner: async () => ['fetch', '/trip'],
     commandRunner: async () => { throw new PromptQuitError(); },
-    output: {write: () => {}},
+    output: {write: (text) => { output += text; }},
   }), 0);
+  assert.match(output, /晚安。素材都在原文件夹,随时再来。/);
 
   await assert.rejects(runInteractiveMenu({
     menuRunner: async () => { throw new PromptAbortError(); },

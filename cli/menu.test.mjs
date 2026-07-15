@@ -7,9 +7,13 @@ import test from 'node:test';
 import {
   buildArgvFromChoices,
   formatEquivalentCommand,
+  MENU_BACK,
   normalizeDroppedPath,
   runMenu,
+  writeBanner,
+  writeFarewell,
 } from './menu.mjs';
+import {PICK_BACK} from './prompts.mjs';
 
 const interact = async ({lines, confirms = []}) => {
   let text = '';
@@ -19,6 +23,8 @@ const interact = async ({lines, confirms = []}) => {
     line: async (_prompt, options = {}) => {
       for (;;) {
         const value = lines.shift();
+        if (options.emptyBack && !value) return PICK_BACK;
+        if (options.allowBack && value === '0') return PICK_BACK;
         const valid = options.validate ? await options.validate(value) : true;
         if (valid === true || valid === undefined) return value;
         text += `${valid}\n`;
@@ -92,8 +98,19 @@ test('runMenu reports invalid choices and q exits cleanly', async () => {
   const {result, output} = await interact({lines: ['9', 'q']});
   assert.equal(result, null);
   assert.match(output, /无效选择,请输入 1-5/);
-  assert.match(output, /全局: 回车执行默认动作/);
-  assert.match(output, /再见/);
+  assert.doesNotMatch(output, /回车 选默认 · 0 返回/);
+  assert.match(output, /晚安。素材都在原文件夹,随时再来。/);
+});
+
+test('banner and farewell degrade to plain ASCII art without a TTY', () => {
+  let text = '';
+  const output = {write: (chunk) => { text += chunk; }};
+  writeBanner(output);
+  writeFarewell(output);
+  assert.match(text, /tsuzuri 綴/);
+  assert.match(text, /把照片和一首歌缀成影像日记/);
+  assert.match(text, /晚安。素材都在原文件夹,随时再来。/);
+  assert.doesNotMatch(text, /\x1b\[/);
 });
 
 test('runMenu repeats missing and wrong-type folder paths', async () => {
@@ -110,6 +127,11 @@ test('runMenu repeats missing and wrong-type folder paths', async () => {
   } finally {
     fs.rmSync(root, {recursive: true, force: true});
   }
+});
+
+test('path prompt returns to the menu on empty enter', async () => {
+  const {result} = await interact({lines: ['3', '']});
+  assert.equal(result, MENU_BACK);
 });
 
 test('still accepts a file path and defaults presentation choices to off', async () => {

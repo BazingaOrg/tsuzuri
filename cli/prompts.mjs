@@ -1,7 +1,8 @@
 import readline from 'node:readline';
 
+import {dim, promptPrefix} from './term.mjs';
+
 export const PICK_BACK = Symbol('pick-back');
-export const GLOBAL_PROMPT_HELP = '全局: 回车执行默认动作 · 0 返回(可用时) · q 退出 · Ctrl+C 中断';
 
 export class PromptAbortError extends Error {
   constructor() {
@@ -19,9 +20,17 @@ export class PromptQuitError extends Error {
   }
 }
 
-export const writeGlobalPromptHelp = (output = process.stdout) => {
-  output.write(`${GLOBAL_PROMPT_HELP}\n`);
+/** 键图例:段与段用 ` · ` 连接,整体 dim,视觉焦点留给问题文本。 */
+export const formatLegend = (segments, output = process.stdout) => {
+  const filtered = segments.filter(Boolean);
+  return filtered.length > 0 ? dim(` · ${filtered.join(' · ')}`, output) : '';
 };
+
+/** 提问行:`? 问题 [默认值] · 键 动作 · 键 动作: `,主体无码以免干扰行编辑。 */
+export const renderPrompt = ({text, defaultValue = null, legend = []}, output = process.stdout) =>
+  `${promptPrefix(output)} ${text}` +
+  `${defaultValue !== null ? ` [${defaultValue}]` : ''}` +
+  `${formatLegend(legend, output)}: `;
 
 const isQuit = (answer) => String(answer ?? '').trim().toLowerCase() === 'q';
 
@@ -69,53 +78,69 @@ export const withPrompts = async (
         alternateLabel = defaultValue ? '取消' : '执行',
       } = {},
     ) {
+      const legend = [`回车 ${defaultLabel}`, `${alternateKey} ${alternateLabel}`];
+      const prompt = renderPrompt({text, legend}, output);
       for (;;) {
-        const answer = (await question(
-          `${text} [回车${defaultLabel},${alternateKey}=${alternateLabel}]: `,
-        )).trim();
+        const answer = (await question(prompt)).trim();
         if (isQuit(answer)) throw new PromptQuitError();
         if (!answer) return defaultValue;
         if (answer.toLowerCase() === alternateKey.toLowerCase()) return !defaultValue;
-        output.write(`无效输入,请直接回车${defaultLabel},或输入 ${alternateKey} ${alternateLabel}\n`);
+        output.write(`无效输入,可用键:${legend.join(' · ')}\n`);
       }
     },
 
-    async pick(text, items, {allowBack = true} = {}) {
+    async pick(text, items, {allowBack = true, defaultIndex = null, enterLabel = '选默认项'} = {}) {
+      const hasDefault = Number.isInteger(defaultIndex) && defaultIndex >= 0 && defaultIndex < items.length;
+      const legend = [items.length === 1 ? '1 选择' : `1-${items.length} 选择`];
+      if (hasDefault) legend.push(`回车 ${enterLabel}`);
+      else legend.push('回车 放弃');
+      if (allowBack) legend.push('0 返回');
       for (const [index, item] of items.entries()) {
         output.write(`  ${index + 1}. ${item}\n`);
       }
+      const prompt = renderPrompt({text, legend}, output);
       for (;;) {
-        const answer = (
-          await question(
-            `${text} [1-${items.length}],${allowBack ? '0 返回上一步,' : ''}回车放弃: `,
-          )
-        ).trim();
+        const answer = (await question(prompt)).trim();
         if (isQuit(answer)) throw new PromptQuitError();
-        if (!answer) return null;
+        if (!answer) {
+          return hasDefault ? {index: defaultIndex, item: items[defaultIndex]} : null;
+        }
         if (allowBack && answer === '0') return PICK_BACK;
         if (/^\d+$/.test(answer)) {
           const index = Number(answer) - 1;
           if (index >= 0 && index < items.length) return {index, item: items[index]};
         }
-        output.write(
-          `无效选择,请输入 1-${items.length},${allowBack ? '0 返回上一步,或' : '或'}回车放弃\n`,
-        );
+        output.write(`无效选择,可用键:${legend.join(' · ')}\n`);
       }
     },
 
     async line(
       text,
-      {defaultValue, validate, allowBack = false, allowQuit = true, enterLabel} = {},
+      {
+        defaultValue,
+        validate,
+        allowBack = false,
+        backLabel = '返回',
+        emptyBack = false,
+        allowQuit = true,
+        enterLabel,
+        legend: extraLegend = [],
+      } = {},
     ) {
       const hasDefault = defaultValue !== undefined && defaultValue !== null;
-      const actions = [];
-      if (hasDefault) actions.push(`回车${enterLabel ?? '使用默认值'}`);
-      if (allowBack) actions.push('0 返回');
-      const prompt = `${text}${hasDefault ? ` [${defaultValue}]` : ''}` +
-        `${actions.length > 0 ? ` · ${actions.join(' · ')}` : ''}: `;
+      const legend = [];
+      if (hasDefault) legend.push(`回车 ${enterLabel ?? '用默认值'}`);
+      else if (emptyBack) legend.push('回车 留空返回');
+      if (allowBack) legend.push(`0 ${backLabel}`);
+      legend.push(...extraLegend);
+      const prompt = renderPrompt(
+        {text, defaultValue: hasDefault ? defaultValue : null, legend},
+        output,
+      );
       for (;;) {
         const answer = (await question(prompt)).trim();
         if (allowQuit && isQuit(answer)) throw new PromptQuitError();
+        if (emptyBack && !answer) return PICK_BACK;
         if (allowBack && answer === '0') return PICK_BACK;
         const value = answer || (hasDefault ? String(defaultValue) : '');
         const result = validate ? await validate(value) : true;

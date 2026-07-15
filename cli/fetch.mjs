@@ -15,7 +15,7 @@ import path from 'node:path';
 import {CliError} from './options.mjs';
 import {FIXES} from './dependencies.mjs';
 import {formatEquivalentCommand} from './menu.mjs';
-import {PICK_BACK, withPrompts, writeGlobalPromptHelp} from './prompts.mjs';
+import {PICK_BACK, withPrompts} from './prompts.mjs';
 import {AUDIO_DIR, scanFolderLoose} from './project.mjs';
 import {term} from './term.mjs';
 
@@ -360,7 +360,7 @@ const audioFlow = async (ask, folder, {existing = null} = {}) => {
   }
 
   for (;;) {
-    const input = await ask.line('粘贴歌曲 URL,或输入歌名搜索(回车跳过)');
+    const input = await ask.line('粘贴歌曲 URL,或输入歌名搜索', {legend: ['回车 跳过']});
     if (!input) return false;
 
     let url = null;
@@ -385,6 +385,7 @@ const audioFlow = async (ask, folder, {existing = null} = {}) => {
       const choice = await ask.pick(
         '选择要下载的结果',
         search.candidates.map((c) => `${c.title} | ${c.duration} | ${c.uploader}`),
+        {defaultIndex: 0, enterLabel: '下载第1个'},
       );
       if (choice === null) return false;
       if (choice === PICK_BACK) continue;
@@ -411,13 +412,21 @@ const audioFlow = async (ask, folder, {existing = null} = {}) => {
       );
       term.detail(`来源视频: ${sourceTitle || result.audio}`);
 
+      const defaultArtist = sanitizeFilePart(probe.artist ?? '') || undefined;
       for (;;) {
-        const titleInput = await ask.line('歌曲名(必填,用于文件名和歌词搜索)', {
+        const titleInput = await ask.line('歌曲名(用于文件名和歌词搜索)', {
+          defaultValue: sourceTitle || undefined,
+          enterLabel: '采用',
           validate: (value) => Boolean(sanitizeFilePart(value)) || '歌曲名不能为空',
         });
         const title = sanitizeFilePart(titleInput);
-        const artistInput = await ask.line('歌手(可选,填写后歌词匹配更准确;0=返回修改歌曲名)');
-        if (artistInput === '0') continue;
+        const artistInput = await ask.line('歌手(可选,匹配更准)', {
+          defaultValue: defaultArtist,
+          enterLabel: '采用',
+          allowBack: true,
+          backLabel: '返回改歌名',
+        });
+        if (artistInput === PICK_BACK) continue;
         const artist = sanitizeFilePart(artistInput);
         const filename = buildAudioFilename({title, artist, ext: path.extname(result.audio)});
         term.detail(`保存文件: ${path.posix.join(AUDIO_DIR, filename)}`);
@@ -504,6 +513,7 @@ export const lyricsFlow = async (
       const choice = await ask.pick(
         '选择要预览的歌词',
         synced.map((record) => formatLyricsCandidate(record, probe.duration)),
+        {defaultIndex: 0, enterLabel: synced.length === 1 ? '预览' : '预览第1个'},
       );
       if (choice === null) return false;
       if (choice === PICK_BACK) break;
@@ -517,7 +527,9 @@ export const lyricsFlow = async (
         term.info(formatLrcPageTitle(entries.length, offset));
         for (const line of formatLrcPreview(entries, {offset})) out.write(`${line}\n`);
         if (offset + PREVIEW_LINES >= entries.length) break;
-        const action = await ask.line('回车=下一页,s=跳到保存,0=返回候选');
+        const action = await ask.line('翻看歌词', {
+          legend: ['回车 下一页', 's 保存', '0 返回候选'],
+        });
         if (action === '0') {
           previewBack = true;
           break;
@@ -590,7 +602,6 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
   const folder = resolveFolder(folderArg);
 
   await withPrompts(async (ask) => {
-    writeGlobalPromptHelp(output);
     let {audios, lyrics} = scanFolderLoose(folder);
     let downloadedInfo = null;
     term.info(
@@ -609,7 +620,8 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
         }
       }
     } else if (await ask.confirm('文件夹里没有音频,现在下载?', {
-      defaultValue: false, defaultLabel: '跳过', alternateKey: 'd', alternateLabel: '下载',
+      // 显式 fetch 入口默认执行主路径;自动兜底 offerFetch 仍默认跳过(有意不对称)
+      defaultValue: true, defaultLabel: '下载', alternateKey: 's', alternateLabel: '跳过',
     })) {
       downloadedInfo = await audioFlow(ask, folder);
     }
@@ -630,7 +642,7 @@ export const runFetch = async (folderArg, {input = process.stdin, output = proce
         });
       }
     } else if (await ask.confirm('没有 .lrc,在线搜索同步歌词?', {
-      defaultValue: false, defaultLabel: '跳过', alternateKey: 's', alternateLabel: '搜索',
+      defaultValue: true, defaultLabel: '搜索', alternateKey: 's', alternateLabel: '跳过',
     })) {
       const saved = await lyricsFlow(ask, output, folder, audios[0], {
         confirmedTitle: downloadedInfo?.title,
@@ -654,7 +666,6 @@ export const offerFetch = async (folder, {input = process.stdin, output = proces
   if (!offerAudio && !offerLyrics) return;
 
   await withPrompts(async (ask) => {
-    writeGlobalPromptHelp(output);
     let downloadedInfo = null;
     if (offerAudio) {
       term.info('文件夹里没有音频');
