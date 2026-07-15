@@ -4,12 +4,42 @@ import test from 'node:test';
 import {CliError, parseArgs} from './options.mjs';
 
 test('bare folder argument routes to the render command', () => {
-  assert.deepEqual(parseArgs(['album']), {command: 'render', folder: 'album', output: null});
+  assert.deepEqual(parseArgs(['album']), {
+    command: 'render', folder: 'album', output: null, exif: false, sign: false, dark: false,
+  });
   assert.deepEqual(parseArgs(['album', '-o', 'out.mp4']), {
     command: 'render',
     folder: 'album',
     output: 'out.mp4',
+    exif: false,
+    sign: false,
+    dark: false,
   });
+});
+
+test('render command accepts --exif, --sign, and --dark flags', () => {
+  assert.deepEqual(parseArgs(['album', '--exif', '--sign', '--dark']), {
+    command: 'render',
+    folder: 'album',
+    output: null,
+    exif: true,
+    sign: true,
+    dark: true,
+  });
+  assert.deepEqual(parseArgs(['album', '-o', 'out.mp4', '--exif']), {
+    command: 'render',
+    folder: 'album',
+    output: 'out.mp4',
+    exif: true,
+    sign: false,
+    dark: false,
+  });
+});
+
+test('render command rejects an unknown flag before or after the folder', () => {
+  assert.throws(() => parseArgs(['--exfi']), /未知参数: --exfi/);
+  assert.throws(() => parseArgs(['--exfi', 'album']), /未知参数: --exfi/);
+  assert.throws(() => parseArgs(['album', '--exfi']), /未知参数: --exfi/);
 });
 
 test('a leading `doctor` token routes to the doctor command', () => {
@@ -52,15 +82,17 @@ test('a leading `help` token (or -h / --help) routes to the help command', () =>
 });
 
 test('a path-qualified folder named doctor/lyrics/still/fetch/help is the escape hatch, not a verb', () => {
-  assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null});
-  assert.deepEqual(parseArgs(['./fetch']), {command: 'render', folder: './fetch', output: null});
-  assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null});
-  assert.deepEqual(parseArgs(['./help']), {command: 'render', folder: './help', output: null});
-  assert.deepEqual(parseArgs(['./still']), {command: 'render', folder: './still', output: null});
+  const flags = {exif: false, sign: false, dark: false};
+  assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null, ...flags});
+  assert.deepEqual(parseArgs(['./fetch']), {command: 'render', folder: './fetch', output: null, ...flags});
+  assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null, ...flags});
+  assert.deepEqual(parseArgs(['./help']), {command: 'render', folder: './help', output: null, ...flags});
+  assert.deepEqual(parseArgs(['./still']), {command: 'render', folder: './still', output: null, ...flags});
   assert.deepEqual(parseArgs(['/abs/path/lyrics']), {
     command: 'render',
     folder: '/abs/path/lyrics',
     output: null,
+    ...flags,
   });
 });
 

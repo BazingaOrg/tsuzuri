@@ -61,7 +61,13 @@ export const normalizeDroppedPath = (input) => {
 
 /** 由菜单选择组装 argv,与命令行同一语义;未知选择返回 null。 */
 export const buildArgvFromChoices = ({choice, target, exif = false, sign = false, dark = false}) => {
-  if (choice === '1') return [target];
+  if (choice === '1') {
+    const argv = [target];
+    if (exif) argv.push('--exif');
+    if (sign) argv.push('--sign');
+    if (dark) argv.push('--dark');
+    return argv;
+  }
   if (choice === '2') {
     const argv = ['still', target];
     if (exif) argv.push('--exif');
@@ -127,7 +133,7 @@ export const runMenu = async (
     let exif = false;
     let sign = false;
     let dark = false;
-    if (item.key === '2') {
+    if (item.key === '1' || item.key === '2') {
       exif = await ask.confirm('显示 EXIF 拍摄参数和相机信息?', {
         defaultValue: false, defaultLabel: '不显示', alternateKey: 'e', alternateLabel: '显示',
       });

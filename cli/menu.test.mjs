@@ -61,6 +61,15 @@ test('normalizeDroppedPath expands a leading tilde and trims whitespace', () => 
 
 test('buildArgvFromChoices maps each menu entry onto CLI argv', () => {
   assert.deepEqual(buildArgvFromChoices({choice: '1', target: './trip'}), ['./trip']);
+  assert.deepEqual(buildArgvFromChoices({choice: '1', target: './trip', exif: true, sign: true}), [
+    './trip',
+    '--exif',
+    '--sign',
+  ]);
+  assert.deepEqual(buildArgvFromChoices({choice: '1', target: './trip', dark: true}), [
+    './trip',
+    '--dark',
+  ]);
   assert.deepEqual(buildArgvFromChoices({choice: '2', target: './p', exif: true, sign: true}), [
     'still',
     './p',
@@ -144,6 +153,24 @@ test('still accepts a file path and defaults presentation choices to off', async
       confirms: [false, false, false],
     });
     assert.deepEqual(result, ['still', file]);
+    assert.deepEqual(confirmCalls.map((call) => call.options), [
+      {defaultValue: false, defaultLabel: '不显示', alternateKey: 'e', alternateLabel: '显示'},
+      {defaultValue: false, defaultLabel: '不加入', alternateKey: 's', alternateLabel: '加入'},
+      {defaultValue: false, defaultLabel: '不使用', alternateKey: 'd', alternateLabel: '使用'},
+    ]);
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+});
+
+test('render (choice 1) asks the same three presentation questions as still', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-menu-test-'));
+  try {
+    const {result, confirmCalls} = await interact({
+      lines: ['1', root],
+      confirms: [true, false, true],
+    });
+    assert.deepEqual(result, [root, '--exif', '--dark']);
     assert.deepEqual(confirmCalls.map((call) => call.options), [
       {defaultValue: false, defaultLabel: '不显示', alternateKey: 'e', alternateLabel: '显示'},
       {defaultValue: false, defaultLabel: '不加入', alternateKey: 's', alternateLabel: '加入'},

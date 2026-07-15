@@ -160,6 +160,17 @@ test('project paths separate generated JSON and video output', () => {
   assert.equal(resolveProjectPaths('/tmp/summer-album', './film.mp4').outputPath, join(process.cwd(), 'film.mp4'));
 });
 
+test('an output suffix is appended to the default filename but not to an explicit -o path', () => {
+  assert.equal(
+    resolveProjectPaths('/tmp/summer-album', null, '-exif-sign-dark').outputPath,
+    '/tmp/summer-album/output/summer-album-exif-sign-dark.mp4',
+  );
+  assert.equal(
+    resolveProjectPaths('/tmp/summer-album', './film.mp4', '-exif-sign-dark').outputPath,
+    join(process.cwd(), 'film.mp4'),
+  );
+});
+
 test('legacy JSON is copied once without removing or overwriting files', () => {
   const root = mkdtempSync(join(tmpdir(), 'tsuzuri-layout-'));
   try {

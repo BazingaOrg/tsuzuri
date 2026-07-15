@@ -95,7 +95,7 @@ export const runCommandFromArgv = async (argv) => {
   }
   if (parsed.command === 'still') return runStill(parsed);
 
-  const {folder: folderArg, output} = parsed;
+  const {folder: folderArg, output, exif, sign, dark} = parsed;
   const folder = path.resolve(folderArg);
   if (!fs.existsSync(folder)) throw new CliError(`找不到路径: ${folder}`);
   if (!fs.statSync(folder).isDirectory()) {
@@ -115,7 +115,8 @@ export const runCommandFromArgv = async (argv) => {
   if (videos.length > 0) {
     term.warn(`发现视频文件,tsuzuri 目前只处理照片,已忽略: ${videos.join(', ')}`);
   }
-  const project = resolveProjectPaths(folder, output);
+  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}`;
+  const project = resolveProjectPaths(folder, output, variantSuffix);
   ensureProjectDirs(project);
   const copied = copyLegacyJson(folder, project.metadataDir);
   if (copied.length > 0) {
@@ -184,12 +185,15 @@ export const runCommandFromArgv = async (argv) => {
   const rendererPackage = path.join(REPO, 'renderer', 'node_modules', '@remotion', 'renderer');
   if (!fs.existsSync(rendererPackage)) throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
 
-  term.start('渲染视频');
+  term.start(`渲染视频${exif ? ', EXIF' : ''}${sign ? ', 签名' : ''}${dark ? ', 黑底' : ''}`);
   const renderCode = runCommand('渲染视频', process.execPath, [
     path.join(REPO, 'cli', 'render.mjs'),
     timelinePath,
     outPath,
     folder,
+    ...(exif ? ['--exif'] : []),
+    ...(sign ? ['--sign'] : []),
+    ...(dark ? ['--dark'] : []),
   ]);
   if (renderCode !== 0) return renderCode;
   term.success('视频渲染完成');

@@ -61,7 +61,11 @@ export const scanFolder = (folder, {requirePhotos = true} = {}) => {
   return {photos, audio: audios[0], lyrics: lyrics[0] ?? null, videos};
 };
 
-export const resolveProjectPaths = (folder, output = null) => {
+/**
+ * `outputSuffix`(如 `-exif-sign-dark`)只在 `output` 未显式指定时追加到默认
+ * 文件名,避免变体覆盖普通版;`-o` 显式指定时用户说了算,不加后缀。
+ */
+export const resolveProjectPaths = (folder, output = null, outputSuffix = '') => {
   const metadataDir = path.join(folder, 'metadata');
   const defaultOutputDir = path.join(folder, 'output');
   return {
@@ -69,7 +73,9 @@ export const resolveProjectPaths = (folder, output = null) => {
     beatsPath: path.join(metadataDir, 'beats.json'),
     lyricsPath: path.join(metadataDir, 'lyrics.json'),
     timelinePath: path.join(metadataDir, 'timeline.json'),
-    outputPath: path.resolve(output ?? path.join(defaultOutputDir, `${path.basename(folder)}.mp4`)),
+    outputPath: path.resolve(
+      output ?? path.join(defaultOutputDir, `${path.basename(folder)}${outputSuffix}.mp4`),
+    ),
   };
 };
 
