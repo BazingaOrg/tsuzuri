@@ -42,6 +42,7 @@ node cli/tsuzuri.mjs
 node cli/tsuzuri.mjs ./osaka-trip
 node cli/tsuzuri.mjs ./osaka-trip -o out.mp4
 node cli/tsuzuri.mjs ./osaka-trip --exif --sign --dark
+node cli/tsuzuri.mjs ./osaka-trip --draft
 node cli/tsuzuri.mjs lyrics ./osaka-trip
 node cli/tsuzuri.mjs fetch ./osaka-trip
 node cli/tsuzuri.mjs still ./photo.jpg
@@ -61,15 +62,19 @@ node cli/tsuzuri.mjs help
 | `still <photo\|folder>` | 导出同款静态 PNG |
 | `doctor` | 检查本地依赖 |
 
-`still` 支持 `-o`、`--exif`、`--sign`、`--dark`、`--skip-existing` 和 `--scale <1-4>`；视频渲染同样支持 `--exif`、`--sign`、`--dark`，效果与 still 对齐（渲染时覆盖，不写入 timeline.json），不带 `-o` 时默认输出文件名会追加 `-exif`/`-sign`/`-dark` 变体后缀；完整用法以 `node cli/tsuzuri.mjs help` 为准。
+`still` 支持 `-o`、`--exif`、`--sign`、`--dark`、`--skip-existing` 和 `--scale <1-4>`；视频渲染同样支持 `--exif`、`--sign`、`--dark`，效果与 still 对齐（渲染时覆盖，不写入 timeline.json）。`--draft` 会按正式分辨率的 2/3 快速输出预览（默认配置为 720p）并跳过响度归一；不带 `-o` 时，默认文件名会追加相应变体和 `-draft` 后缀。完整用法以 `node cli/tsuzuri.mjs help` 为准。
+
+视频默认使用可用逻辑 CPU 数减一并发渲染；内存紧张时可用 `TSUZURI_CONCURRENCY=4`
+或 `TSUZURI_CONCURRENCY=50%` 临时降低并发，不写入项目配置。
 
 tsuzuri 会自动处理：
 
 - 照片均有 EXIF 时间时按拍摄时间排列，否则按文件名排列
 - 优先读取 `.lrc`，否则使用本地 Whisper；纯音乐自动跳过字幕
+- 音频、LRC、demucs 设置和当前 Whisper/demucs 运行环境未变时复用分析结果；增删照片只重新规划
 - 交互终端下缺音频/歌词时，主动提议在线获取（同 `fetch`）；素材齐备则不打扰
 - 根据照片数量和歌曲长度选择踩点节奏，必要时在重拍处裁歌并淡出
-- 将成片响度归一到 −14 LUFS（TP −1.5 dB）
+- 正式成片响度归一到 −14 LUFS（TP −1.5 dB）；draft 为速度跳过此步
 
 目前支持 `.jpg`、`.jpeg`、`.png`、`.webp` 图片，以及 `.mp3`、`.m4a`、`.wav`、`.flac`、`.aac`、`.ogg` 音频；视频素材暂不支持。
 

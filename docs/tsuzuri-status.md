@@ -13,7 +13,7 @@ tsuzuri 已具备完整的本地视频管线：读取照片、唯一音频和可
 | 照片排序 | 全部具有 EXIF 时间时按拍摄时间，否则按文件名 |
 | 歌词 | LRC 优先，否则使用本地 Whisper；LRCLIB 中文歌词优先转简体，英文和日文保持原文；低置信度 Whisper 歌词在规划阶段过滤 |
 | 节奏 | 默认吸附重拍；照片密集时逐拍快闪，照片过少时在重拍处裁短歌曲 |
-| 渲染 | 静止照片、三种过渡、片头签名、片尾文案和 −14 LUFS 响度归一 |
+| 渲染 | 静止照片、三种过渡、片头签名、片尾文案和 −14 LUFS 响度归一；`--draft` 按正式分辨率的 2/3 输出预览（默认配置为 720p） |
 | 静态导出 | `still` 支持单张或批量 PNG、EXIF 展签、签名、暗色背景和续跑 |
 
 日常入口为 `node cli/tsuzuri.mjs <folder>`。裸命令提供常驻交互菜单，流程成功、失败或取消后
@@ -42,7 +42,10 @@ tsuzuri 已具备完整的本地视频管线：读取照片、唯一音频和可
 Analyze → Plan → metadata/timeline.json → Render → output/*.mp4
 ```
 
-三个阶段通过 `metadata/` 下的 JSON 文件衔接。CLI 使用 `input_hash` 判断素材是否变化，planner 使用 `plan_checksum` 判断 `timeline.json` 是否被手动修改：未修改的旧时间线会按最新算法刷新，手动修改的时间线会被保留。
+三个阶段通过 `metadata/` 下的 JSON 文件衔接。`analysis.json` 记录只覆盖音频、LRC、demucs
+和当前 Whisper/demucs 运行环境的分析摘要，增删照片不会重复运行节拍与歌词识别；timeline 的 `input_hash`
+仍覆盖全部素材与配置。planner 使用 `plan_checksum` 判断 `timeline.json` 是否被手动修改：
+未修改的旧时间线会按最新算法刷新，手动修改的时间线会被保留。
 
 视频与 still 共用画布、照片、字体和配色系统。深色背景根据对比度自动选择暗厅色板；视频背景通过 `tsuzuri.toml` 设置，still 也可使用 `--dark`。
 
@@ -75,5 +78,5 @@ cd cli && npm test
 cd renderer && npm run typecheck
 ```
 
-最近一次本地验证（2026-07-15）：analyzer 80 项、CLI 112 项测试通过，renderer 类型检查通过；
-真实 M4A 经 FFmpeg fallback 完成节拍分析且不再出现 PySoundFile/audioread 警告。
+最近一次本地验证（2026-07-16）：analyzer 103 项、CLI 138 项测试通过，renderer 类型检查通过；
+真实 CLI draft 渲染和仅新增照片时的 analysis cache 命中均已验证。
