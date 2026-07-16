@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {applyRenderVariants} from './render.mjs';
+import {applyRenderVariants, detectParallelism, resolveRenderSettings} from './render.mjs';
 
 const timeline = () => ({
   meta: {duration: 10, audio: './song.mp3'},
@@ -61,4 +61,38 @@ test('exif shortage is reported once with the count of unique photos missing EXI
     },
   );
   assert.equal(shortageCount, 2);
+});
+
+test('normal and draft render settings preserve fps while changing transfer and encode quality', () => {
+  assert.deepEqual(resolveRenderSettings({parallelism: 10}), {
+    concurrency: 9,
+    scale: 1,
+    crf: 16,
+    jpegQuality: 90,
+  });
+  assert.deepEqual(resolveRenderSettings({draft: true, parallelism: 10}), {
+    concurrency: 9,
+    scale: 2 / 3,
+    crf: 23,
+    jpegQuality: 80,
+  });
+});
+
+test('render concurrency supports explicit integer and percentage escape hatches', () => {
+  assert.equal(resolveRenderSettings({parallelism: 1}).concurrency, 1);
+  assert.equal(resolveRenderSettings({parallelism: 10, envConcurrency: '3'}).concurrency, 3);
+  assert.equal(resolveRenderSettings({parallelism: 10, envConcurrency: '50%'}).concurrency, 5);
+  assert.equal(resolveRenderSettings({parallelism: 10, envConcurrency: '1%'}).concurrency, 1);
+  for (const value of ['0', '0%', '101%', 'half']) {
+    assert.throws(() => resolveRenderSettings({envConcurrency: value}), /TSUZURI_CONCURRENCY/);
+  }
+  assert.throws(
+    () => resolveRenderSettings({parallelism: 2, envConcurrency: '3'}),
+    /不能超过可用 CPU 数 2/,
+  );
+});
+
+test('render parallelism respects container CPU quotas when Node exposes them', () => {
+  assert.equal(detectParallelism({availableParallelism: () => 2, cpus: () => Array(64)}), 2);
+  assert.equal(detectParallelism({cpus: () => Array(4)}), 4);
 });

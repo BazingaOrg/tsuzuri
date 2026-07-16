@@ -6,7 +6,7 @@ export const STILL_USAGE = `用法: tsuzuri still <photo|folder> ${STILL_OPTIONS
 export const USAGE =
   '用法:\n' +
   '  tsuzuri                                    不带参数进入常驻菜单(仅交互终端)\n' +
-  '  tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--trim auto|full|秒数]  渲染相册视频(默认命令)\n' +
+  '  tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--draft] [--trim auto|full|秒数]  渲染相册视频(默认命令)\n' +
   '  tsuzuri still <photo|folder> [选项]         按视频同款视觉导出静态图\n' +
   '  tsuzuri doctor                             检查依赖是否就绪\n' +
   '  tsuzuri lyrics <folder>                    只识别歌词并预览(不渲染)\n' +
@@ -17,7 +17,7 @@ export const USAGE =
   '若文件夹名恰好叫 doctor / lyrics / still / fetch / help,用路径前缀转义,如 tsuzuri ./still';
 
 const parseRenderArgs = (argv) => {
-  const args = {command: 'render', folder: null, output: null, exif: false, sign: false, dark: false, trim: null};
+  const args = {command: 'render', folder: null, output: null, exif: false, sign: false, dark: false, draft: false, trim: null};
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '-o' || argv[i] === '--output') {
       if (i + 1 >= argv.length || argv[i + 1].startsWith('-')) {
@@ -30,6 +30,8 @@ const parseRenderArgs = (argv) => {
       args.sign = true;
     } else if (argv[i] === '--dark') {
       args.dark = true;
+    } else if (argv[i] === '--draft') {
+      args.draft = true;
     } else if (argv[i] === '--trim') {
       if (i + 1 >= argv.length || argv[i + 1].startsWith('-')) {
         throw new CliError('--trim 需要 auto、full 或正数秒数');
@@ -43,11 +45,11 @@ const parseRenderArgs = (argv) => {
       }
       args.trim = value;
     } else if (argv[i].startsWith('-')) {
-      throw new CliError(`未知参数: ${argv[i]}(用法: tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--trim auto|full|秒数])`);
+      throw new CliError(`未知参数: ${argv[i]}(用法: tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--draft] [--trim auto|full|秒数])`);
     } else if (!args.folder) {
       args.folder = argv[i];
     } else {
-      throw new CliError(`未知参数: ${argv[i]}(用法: tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--trim auto|full|秒数])`);
+      throw new CliError(`未知参数: ${argv[i]}(用法: tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--draft] [--trim auto|full|秒数])`);
     }
   }
   if (!args.folder) {

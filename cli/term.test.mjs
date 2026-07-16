@@ -170,6 +170,10 @@ test('an output suffix is appended to the default filename but not to an explici
     resolveProjectPaths('/tmp/summer-album', './film.mp4', '-exif-sign-dark').outputPath,
     join(process.cwd(), 'film.mp4'),
   );
+  assert.equal(
+    resolveProjectPaths('/tmp/summer-album', null, '-draft').outputPath,
+    '/tmp/summer-album/output/summer-album-draft.mp4',
+  );
 });
 
 test('legacy JSON is copied once without removing or overwriting files', () => {

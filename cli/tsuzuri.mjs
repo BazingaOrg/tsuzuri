@@ -105,7 +105,7 @@ export const runCommandFromArgv = async (argv) => {
   }
   if (parsed.command === 'still') return runStill(parsed);
 
-  const {folder: folderArg, output, exif, sign, dark, trim} = parsed;
+  const {folder: folderArg, output, exif, sign, dark, draft, trim} = parsed;
   const folder = path.resolve(folderArg);
   if (!fs.existsSync(folder)) throw new CliError(`找不到路径: ${folder}`);
   if (!fs.statSync(folder).isDirectory()) {
@@ -125,7 +125,7 @@ export const runCommandFromArgv = async (argv) => {
   if (videos.length > 0) {
     term.warn(`发现视频文件,tsuzuri 目前只处理照片,已忽略: ${videos.join(', ')}`);
   }
-  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}`;
+  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}${draft ? '-draft' : ''}`;
   const project = resolveProjectPaths(folder, output, variantSuffix);
   ensureProjectDirs(project);
   const copied = copyLegacyJson(folder, project.metadataDir);
@@ -227,7 +227,7 @@ export const runCommandFromArgv = async (argv) => {
   const rendererPackage = path.join(REPO, 'renderer', 'node_modules', '@remotion', 'renderer');
   if (!fs.existsSync(rendererPackage)) throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
 
-  term.start(`渲染视频${exif ? ', EXIF' : ''}${sign ? ', 签名' : ''}${dark ? ', 黑底' : ''}`);
+  term.start(`渲染视频${exif ? ', EXIF' : ''}${sign ? ', 签名' : ''}${dark ? ', 黑底' : ''}${draft ? ', 草稿' : ''}`);
   const renderCode = runCommand('渲染视频', process.execPath, [
     path.join(REPO, 'cli', 'render.mjs'),
     timelinePath,
@@ -236,12 +236,17 @@ export const runCommandFromArgv = async (argv) => {
     ...(exif ? ['--exif'] : []),
     ...(sign ? ['--sign'] : []),
     ...(dark ? ['--dark'] : []),
+    ...(draft ? ['--draft'] : []),
   ]);
   if (renderCode !== 0) return renderCode;
   term.success('视频渲染完成');
 
-  term.start('检查成片响度');
-  normalizeLoudness(outPath);
+  if (!draft) {
+    term.start('检查成片响度');
+    normalizeLoudness(outPath);
+  } else {
+    term.detail('草稿模式: 跳过响度归一');
+  }
   term.success(`完成 → ${outPath}`);
   return 0;
 };

@@ -5,7 +5,7 @@ import {CliError, parseArgs} from './options.mjs';
 
 test('bare folder argument routes to the render command', () => {
   assert.deepEqual(parseArgs(['album']), {
-    command: 'render', folder: 'album', output: null, exif: false, sign: false, dark: false, trim: null,
+    command: 'render', folder: 'album', output: null, exif: false, sign: false, dark: false, draft: false, trim: null,
   });
   assert.deepEqual(parseArgs(['album', '-o', 'out.mp4']), {
     command: 'render',
@@ -14,6 +14,7 @@ test('bare folder argument routes to the render command', () => {
     exif: false,
     sign: false,
     dark: false,
+    draft: false,
     trim: null,
   });
 });
@@ -26,6 +27,7 @@ test('render command accepts --exif, --sign, and --dark flags', () => {
     exif: true,
     sign: true,
     dark: true,
+    draft: false,
     trim: null,
   });
   assert.deepEqual(parseArgs(['album', '-o', 'out.mp4', '--exif']), {
@@ -35,6 +37,7 @@ test('render command accepts --exif, --sign, and --dark flags', () => {
     exif: true,
     sign: false,
     dark: false,
+    draft: false,
     trim: null,
   });
 });
@@ -43,6 +46,11 @@ test('render command rejects an unknown flag before or after the folder', () => 
   assert.throws(() => parseArgs(['--exfi']), /未知参数: --exfi/);
   assert.throws(() => parseArgs(['--exfi', 'album']), /未知参数: --exfi/);
   assert.throws(() => parseArgs(['album', '--exfi']), /未知参数: --exfi/);
+});
+
+test('render command accepts --draft before or after the folder', () => {
+  assert.equal(parseArgs(['album', '--draft']).draft, true);
+  assert.equal(parseArgs(['--draft', 'album']).draft, true);
 });
 
 test('render command accepts one-time trim overrides', () => {
@@ -98,7 +106,7 @@ test('a leading `help` token (or -h / --help) routes to the help command', () =>
 });
 
 test('a path-qualified folder named doctor/lyrics/still/fetch/help is the escape hatch, not a verb', () => {
-  const flags = {exif: false, sign: false, dark: false, trim: null};
+  const flags = {exif: false, sign: false, dark: false, draft: false, trim: null};
   assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null, ...flags});
   assert.deepEqual(parseArgs(['./fetch']), {command: 'render', folder: './fetch', output: null, ...flags});
   assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null, ...flags});

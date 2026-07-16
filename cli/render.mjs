@@ -1,12 +1,42 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {bundleRenderer, loadRemotionRenderer} from './bundle.mjs';
 import {extractFormattedExif} from './exif.mjs';
 import {createPercentProgress} from './progress.mjs';
+
+export const detectParallelism = (osModule = os) =>
+  typeof osModule.availableParallelism === 'function'
+    ? osModule.availableParallelism()
+    : osModule.cpus().length;
+
+export const resolveRenderSettings = (
+  {draft = false, envConcurrency = process.env.TSUZURI_CONCURRENCY, parallelism = detectParallelism()} = {},
+) => {
+  let concurrency = Math.max(1, parallelism - 1);
+  if (envConcurrency !== undefined && envConcurrency !== '') {
+    if (/^\d+$/.test(envConcurrency) && Number(envConcurrency) > 0) {
+      concurrency = Number(envConcurrency);
+      if (concurrency > parallelism) {
+        throw new Error(`TSUZURI_CONCURRENCY 不能超过可用 CPU 数 ${parallelism}`);
+      }
+    } else if (/^(?:100|[1-9]?\d)%$/.test(envConcurrency) && envConcurrency !== '0%') {
+      concurrency = Math.max(1, Math.floor(parallelism * Number.parseInt(envConcurrency, 10) / 100));
+    } else {
+      throw new Error('TSUZURI_CONCURRENCY 必须是正整数或 1%-100%');
+    }
+  }
+  return {
+    concurrency,
+    scale: draft ? 2 / 3 : 1,
+    crf: draft ? 23 : 16,
+    jpegQuality: draft ? 80 : 90,
+  };
+};
 
 /**
  * 渲染时覆盖 inputProps(timeline.json 本身绝不改写):
@@ -46,7 +76,7 @@ const main = async () => {
   const [timelineArg, outputArg, publicDirArg, ...flagArgs] = process.argv.slice(2);
   if (!timelineArg || !outputArg || !publicDirArg) {
     throw new Error(
-      '用法: render.mjs <timeline.json> <output.mp4> <public-dir> [--exif] [--sign] [--dark]\n' +
+      '用法: render.mjs <timeline.json> <output.mp4> <public-dir> [--exif] [--sign] [--dark] [--draft]\n' +
         '此为内部入口,日常请用 tsuzuri <folder>',
     );
   }
@@ -54,6 +84,7 @@ const main = async () => {
     exif: flagArgs.includes('--exif'),
     sign: flagArgs.includes('--sign'),
     dark: flagArgs.includes('--dark'),
+    draft: flagArgs.includes('--draft'),
   };
 
   const timelinePath = path.resolve(timelineArg);
@@ -62,6 +93,7 @@ const main = async () => {
   const timeline = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   const {renderMedia, selectComposition} = loadRemotionRenderer();
   const progress = createPercentProgress();
+  const renderSettings = resolveRenderSettings({draft: flags.draft});
   let cleanup = () => {};
 
   const inputProps = await applyRenderVariants(timeline, flags, {
@@ -88,8 +120,7 @@ const main = async () => {
       composition,
       inputProps,
       codec: 'h264',
-      crf: 16,
-      jpegQuality: 100,
+      ...renderSettings,
       audioCodec: 'aac',
       pixelFormat: 'yuv420p',
       outputLocation: outputPath,
