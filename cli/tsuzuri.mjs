@@ -15,6 +15,13 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {CliError, USAGE, parseArgs} from './options.mjs';
+import {
+  computeAnalysisHash,
+  hasValidAnalysisCache,
+  invalidateAnalysisManifest,
+  readAnalysisFingerprint,
+  writeAnalysisManifest,
+} from './analysis-cache.mjs';
 import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
 import {runDoctor} from './doctor.mjs';
 import {offerFetch, runFetch} from './fetch.mjs';
@@ -134,24 +141,20 @@ export const runCommandFromArgv = async (argv) => {
   };
   let hash = computeInputHash(folder, inputFiles());
 
-  const timelinePath = project.timelinePath;
-  let skipAnalyze = false;
-  if (fs.existsSync(timelinePath)) {
-    try {
-      const existing = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
-      if (existing?.meta?.input_hash === hash) {
-        skipAnalyze = true;
-        term.detail('输入未变,跳过音频分析');
-      } else {
-        term.detail(existing?.meta?.input_hash ? '素材有变化,重新分析规划' : 'timeline.json 缺少 input_hash,重新分析规划');
-      }
-    } catch {
-      term.detail('timeline.json 无法解析,重新分析规划');
-    }
-  }
-
   const analyzer = path.join(REPO, 'analyzer');
+  const timelinePath = project.timelinePath;
+  const runtimeFingerprint = readAnalysisFingerprint(analyzer);
+  const audioHash = computeAnalysisHash(folder, {audio, lyrics, runtimeFingerprint});
+  const skipAnalyze = hasValidAnalysisCache({
+    analysisPath: project.analysisPath,
+    beatsPath: project.beatsPath,
+    lyricsPath: project.lyricsPath,
+    audioHash,
+  });
+  if (skipAnalyze) term.detail('音频和歌词未变,跳过音频分析');
+
   if (!skipAnalyze) {
+    invalidateAnalysisManifest(project.analysisPath);
     term.start('分析音频');
     const analyzeArgs = [
       'run', '--project', analyzer, 'tsuzuri-analyze', path.join(folder, audio),
@@ -161,6 +164,12 @@ export const runCommandFromArgv = async (argv) => {
     if (lyrics) analyzeArgs.push('--lyrics-file', path.join(folder, lyrics));
     const code = runCommand('分析音频', 'uv', analyzeArgs);
     if (code !== 0) return code;
+    writeAnalysisManifest({
+      analysisPath: project.analysisPath,
+      beatsPath: project.beatsPath,
+      lyricsPath: project.lyricsPath,
+      audioHash,
+    });
     term.success('音频分析完成');
   }
 

@@ -72,6 +72,7 @@ export const resolveProjectPaths = (folder, output = null, outputSuffix = '') =>
     metadataDir,
     beatsPath: path.join(metadataDir, 'beats.json'),
     lyricsPath: path.join(metadataDir, 'lyrics.json'),
+    analysisPath: path.join(metadataDir, 'analysis.json'),
     timelinePath: path.join(metadataDir, 'timeline.json'),
     outputPath: path.resolve(
       output ?? path.join(defaultOutputDir, `${path.basename(folder)}${outputSuffix}.mp4`),

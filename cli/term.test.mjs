@@ -155,6 +155,7 @@ test('project paths separate generated JSON and video output', () => {
   assert.equal(paths.metadataDir, '/tmp/summer-album/metadata');
   assert.equal(paths.beatsPath, '/tmp/summer-album/metadata/beats.json');
   assert.equal(paths.lyricsPath, '/tmp/summer-album/metadata/lyrics.json');
+  assert.equal(paths.analysisPath, '/tmp/summer-album/metadata/analysis.json');
   assert.equal(paths.timelinePath, '/tmp/summer-album/metadata/timeline.json');
   assert.equal(paths.outputPath, '/tmp/summer-album/output/summer-album.mp4');
   assert.equal(resolveProjectPaths('/tmp/summer-album', './film.mp4').outputPath, join(process.cwd(), 'film.mp4'));
@@ -292,6 +293,72 @@ test(
       assert.match(forwarded, /--lyrics-output\n.*metadata\/lyrics\.json/);
       assert.ok(existsSync(join(album, 'metadata')));
       assert.ok(existsSync(join(album, 'output')));
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  },
+);
+
+test(
+  'analysis cache skips added photos but invalidates for changed audio and legacy projects',
+  {skip: process.platform === 'win32'},
+  () => {
+    const root = mkdtempSync(join(tmpdir(), 'tsuzuri-analysis-cli-'));
+    try {
+      const album = join(root, 'album');
+      const bin = join(root, 'bin');
+      const calls = join(root, 'uv-calls.jsonl');
+      mkdirSync(album);
+      mkdirSync(bin);
+      writeFileSync(join(album, 'photo.jpg'), 'photo');
+      writeFileSync(join(album, 'song.mp3'), 'audio');
+      const uv = join(bin, 'uv');
+      writeFileSync(
+        uv,
+        '#!/usr/bin/env node\n' +
+          'const fs = require("fs");\n' +
+          'const args = process.argv.slice(2);\n' +
+          'fs.appendFileSync(process.env.TSUZURI_TEST_CALLS, JSON.stringify(args) + "\\n");\n' +
+          'const valueAfter = (flag) => args[args.indexOf(flag) + 1];\n' +
+          'if (args.includes("tsuzuri-analysis-fingerprint")) {\n' +
+          '  console.log("{\\"version\\":1,\\"backend\\":\\"cpu\\",\\"model\\":\\"small\\",\\"demucs_available\\":false}");\n' +
+          '  process.exit(0);\n' +
+          '}\n' +
+          'if (args.includes("tsuzuri-analyze")) {\n' +
+          '  fs.writeFileSync(valueAfter("-o"), "{\\"version\\":1}");\n' +
+          '  fs.writeFileSync(valueAfter("--lyrics-output"), "{\\"version\\":1,\\"segments\\":[]}");\n' +
+          '  process.exit(0);\n' +
+          '}\n' +
+          'process.exit(7);\n',
+      );
+      chmodSync(uv, 0o755);
+      const script = fileURLToPath(new URL('./tsuzuri.mjs', import.meta.url));
+      const env = {
+        ...process.env,
+        PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
+        TSUZURI_TEST_CALLS: calls,
+      };
+      const run = () => spawnSync(process.execPath, [script, album], {encoding: 'utf8', env});
+      const readCalls = () => readFileSync(calls, 'utf8').trim().split('\n').map(JSON.parse);
+      const readPipelineCalls = () => readCalls().filter((args) => !args.includes('tsuzuri-analysis-fingerprint'));
+
+      const legacy = run();
+      assert.equal(legacy.status, 7);
+      assert.deepEqual(readPipelineCalls().map((args) => args.includes('tsuzuri-analyze')), [true, false]);
+      assert.ok(existsSync(join(album, 'metadata', 'analysis.json')));
+
+      writeFileSync(calls, '');
+      writeFileSync(join(album, 'photo-2.jpg'), 'photo 2');
+      const photosChanged = run();
+      assert.equal(photosChanged.status, 7);
+      assert.deepEqual(readPipelineCalls().map((args) => args.includes('tsuzuri-analyze')), [false]);
+      assert.match(photosChanged.stdout, /音频和歌词未变,跳过音频分析/);
+
+      writeFileSync(calls, '');
+      writeFileSync(join(album, 'song.mp3'), 'changed audio');
+      const audioChanged = run();
+      assert.equal(audioChanged.status, 7);
+      assert.deepEqual(readPipelineCalls().map((args) => args.includes('tsuzuri-analyze')), [true, false]);
     } finally {
       rmSync(root, {recursive: true, force: true});
     }
