@@ -24,8 +24,19 @@
 | `min_gap` | `2.0` | 相邻切换点最小间隔（秒） |
 | `flash_avg_threshold` | `2.0` | 平均每张展示低于此值时进入逐拍快闪模式 |
 | `flash_min_gap` | `0.8` | 快闪模式的最小切换间隔（秒） |
-| `trim_avg_threshold` | `10.0` | 平均每张展示超过此值时裁短歌曲 |
-| `trim_target_avg` | `8.0` | 裁歌后的目标平均每张展示时长（秒） |
+| `trim` | `"auto"` | `"auto"` 自动裁剪、`"full"` 播完整首歌，或填正数秒数并吸附到最近重拍 |
+| `trim_avg_threshold` | `10.0` | `trim = "auto"` 时，平均每张展示超过此值才裁短歌曲 |
+| `trim_target_avg` | `8.0` | `trim = "auto"` 时，裁歌后的目标平均每张展示时长（秒） |
+
+首次触发自动裁剪时，交互终端会询问接受裁剪还是播放完整首歌，并把选择写回
+`tsuzuri.toml`，之后不再重复询问。管道和脚本保持自动行为、不进入问答。
+
+命令行 `--trim auto|full|秒数` 可仅覆盖本次运行，不修改 `tsuzuri.toml`；例如：
+
+```bash
+tsuzuri ./osaka-trip --trim full
+tsuzuri ./osaka-trip --trim 120
+```
 
 ## 字幕与识别
 
@@ -62,6 +73,7 @@ fps = 30
 background = "#000000"
 photo_scale = 0.85
 transition = "crossfade"
+trim = "full"
 subtitles = false
 outro_text = "谢谢观看"
 signature = "signature.svg"

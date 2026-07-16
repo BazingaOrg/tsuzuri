@@ -26,6 +26,11 @@
 | `fps` | int | 默认 60 |
 | `background` | string | 默认 `#FFFFFF` |
 | `photo_scale` | float | 默认 `0.8`，照片安全框占画布的比例 |
+| `trim` | object | 本次歌曲裁剪决策的说明元数据 |
+| `trim.mode` | string | `auto`、`full` 或 `seconds` |
+| `trim.applied` | bool | 是否实际缩短了歌曲时间线 |
+| `trim.full_duration` | float | 原歌曲总时长（秒） |
+| `trim.trimmed_duration` | float | 本次规划采用的时长（秒）；未裁剪时等于原时长 |
 | `input_hash` | string? | CLI 计算的素材与配置摘要，用于判断输入是否变化 |
 | `plan_checksum` | string? | planner 计算的文档摘要，用于识别手动编辑并决定是否刷新时间线 |
 | `branding` | object? | 用户显式配置的片头与片尾设置 |
