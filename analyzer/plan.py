@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 import tomllib
 from pathlib import Path
@@ -37,6 +38,7 @@ DEFAULTS = {
     "flash_min_gap": 0.8,
     "trim_avg_threshold": 10.0,  # 平均每张展示超过此值 → 裁剪音频
     "trim_target_avg": 8.0,      # 裁剪目标:平均每张展示秒数
+    "trim": "auto",             # auto(自动裁剪)| full(整首)| 正数秒数
     "subtitles": True,           # 字幕轨总开关
     # 片头/片尾运行默认仅用于规划;展示默认值的单一来源在 renderer/theme.ts
     "outro_text": "",
@@ -83,6 +85,14 @@ def _content_checksum(timeline: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
+def _write_status(path: Path | None, outcome: str) -> None:
+    """向 Node CLI 报告 plan 是否真的生成了 timeline；不进入项目产物。"""
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"outcome": outcome}), encoding="utf-8")
+
+
 def _validate_branding(cfg: dict, folder: Path) -> None:
     """校验 branding 相关配置;失败直接退出(不静默回退)。"""
     sig = cfg.get("signature") or ""
@@ -116,6 +126,35 @@ def _validate_background(cfg: dict) -> None:
         raise SystemExit(1)
 
 
+def _is_trim_seconds(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and float(value) > 0
+    )
+
+
+def _validate_trim(cfg: dict) -> None:
+    trim = cfg.get("trim")
+    if (isinstance(trim, str) and trim in {"auto", "full"}) or _is_trim_seconds(trim):
+        return
+    term.error('tsuzuri.toml: trim 必须是 "auto"、"full" 或正数秒数')
+    raise SystemExit(1)
+
+
+def _parse_trim_arg(value: str) -> str | float:
+    if value in {"auto", "full"}:
+        return value
+    try:
+        seconds = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError('--trim 必须是 auto、full 或正数秒数') from exc
+    if not _is_trim_seconds(seconds):
+        raise argparse.ArgumentTypeError('--trim 必须是 auto、full 或正数秒数')
+    return seconds
+
+
 def load_config(folder: Path) -> dict:
     cfg = dict(DEFAULTS)
     explicit_branding: set[str] = set()
@@ -137,6 +176,7 @@ def load_config(folder: Path) -> dict:
     cfg["_explicit_branding"] = explicit_branding
     _validate_background(cfg)
     _validate_branding(cfg, folder)
+    _validate_trim(cfg)
     return cfg
 
 
@@ -182,18 +222,31 @@ def ordered_photos(folder: Path) -> list[Path]:
 def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
                    input_hash: str | None) -> dict:
     photos = ordered_photos(folder)
-    duration = float(beats["duration"])
+    full_duration = float(beats["duration"])
+    duration = full_duration
     n = len(photos)
     avg = duration / n
 
-    # 图少歌长:在目标时长附近的重拍处截断(渲染端按 duration 收尾淡出,无需真裁音频)
-    if avg > cfg["trim_avg_threshold"]:
-        target = n * cfg["trim_target_avg"]
-        candidates = [d for d in beats["downbeats"] if d >= n * cfg["min_gap"]]
+    trim_value = cfg["trim"]
+    trim_mode = "seconds" if _is_trim_seconds(trim_value) else trim_value
+    target = float(trim_value) if trim_mode == "seconds" else n * cfg["trim_target_avg"]
+    should_trim = (
+        (trim_mode == "seconds" and target < full_duration)
+        or (trim_mode == "auto" and avg > cfg["trim_avg_threshold"])
+    )
+    # 图少歌长或显式秒数:在目标时长附近的重拍处截断
+    # (渲染端按 duration 收尾淡出,无需真裁音频)。
+    if should_trim:
+        candidates = [
+            d for d in beats["downbeats"]
+            if n * cfg["min_gap"] <= d < full_duration
+        ]
         if candidates:
             duration = min(candidates, key=lambda d: abs(d - target))
             avg = duration / n
             term.info(f"裁剪模式: 歌长图少,在 {duration:.1f}s 重拍处截断并淡出,平均每张 {avg:.1f}s")
+        else:
+            term.info("裁剪模式: 找不到满足最小照片间隔的重拍点,保留完整歌曲")
 
     is_flash = avg < cfg["flash_avg_threshold"]
     if is_flash:
@@ -282,6 +335,12 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
         "fps": cfg["fps"],
         "background": cfg["background"],
         "photo_scale": cfg["photo_scale"],
+        "trim": {
+            "mode": trim_mode,
+            "applied": duration < full_duration,
+            "full_duration": round(full_duration, 3),
+            "trimmed_duration": round(duration, 3),
+        },
     }
     if branding:
         meta["branding"] = branding
@@ -304,6 +363,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--beats", type=Path, default=None, help="beats.json(默认 folder/metadata/beats.json)")
     parser.add_argument("--lyrics", type=Path, default=None, help="lyrics.json(默认 folder/metadata/lyrics.json,可选)")
     parser.add_argument("--input-hash", default=None, help="输入素材 hash,由 CLI 计算传入")
+    parser.add_argument("--trim", type=_parse_trim_arg, default=None, help="本次裁剪模式:auto、full 或正数秒数")
+    parser.add_argument("--status-output", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("-o", "--output", type=Path, default=None, help="默认 folder/metadata/timeline.json")
     args = parser.parse_args(argv)
 
@@ -333,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
             # 校验和对不上 = 文件内容与"某次 plan 本该产出的结果"不一致 → 手改过。
             # 手改优先,原样保留,不读 beats.json、不触碰任何依赖
             term.warn("timeline.json 内容已被手动修改,保留手改结果,不重新生成")
+            _write_status(args.status_output, "preserved_manual_edit")
             return 0
         term.detail("timeline.json 未被手动修改,使用最新算法重新生成")
 
@@ -342,6 +404,7 @@ def main(argv: list[str] | None = None) -> int:
             # 本来打算用最新算法刷新,但 beats.json 缺失(如被手动删除)——
             # 退回保留现有文件,而不是报错中断(它仍是对应当前素材的有效结果)
             term.warn(f"找不到 beats.json: {beats_path},保留现有 timeline.json(正常流程由 tsuzuri <folder> 自动生成;单独调试可用 uv run tsuzuri-analyze)")
+            _write_status(args.status_output, "preserved_missing_beats")
             return 0
         term.error(f"找不到 beats.json: {beats_path}(正常流程由 tsuzuri <folder> 自动生成;单独调试可用 uv run tsuzuri-analyze)")
         return 1
@@ -353,6 +416,8 @@ def main(argv: list[str] | None = None) -> int:
         lyrics = json.loads(lyrics_path.read_text(encoding="utf-8")).get("segments", [])
 
     cfg = load_config(folder)
+    if args.trim is not None:
+        cfg["trim"] = args.trim
     if not cfg["subtitles"] and lyrics:
         term.info("已按 tsuzuri.toml 关闭字幕轨")
         lyrics = []
@@ -371,6 +436,7 @@ def main(argv: list[str] | None = None) -> int:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_status(args.status_output, "generated")
     n = len(timeline["photos"])
     term.detail(
         f"plan: {n} photos / {timeline['meta']['duration']}s "

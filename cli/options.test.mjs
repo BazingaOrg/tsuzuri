@@ -5,7 +5,7 @@ import {CliError, parseArgs} from './options.mjs';
 
 test('bare folder argument routes to the render command', () => {
   assert.deepEqual(parseArgs(['album']), {
-    command: 'render', folder: 'album', output: null, exif: false, sign: false, dark: false,
+    command: 'render', folder: 'album', output: null, exif: false, sign: false, dark: false, trim: null,
   });
   assert.deepEqual(parseArgs(['album', '-o', 'out.mp4']), {
     command: 'render',
@@ -14,6 +14,7 @@ test('bare folder argument routes to the render command', () => {
     exif: false,
     sign: false,
     dark: false,
+    trim: null,
   });
 });
 
@@ -25,6 +26,7 @@ test('render command accepts --exif, --sign, and --dark flags', () => {
     exif: true,
     sign: true,
     dark: true,
+    trim: null,
   });
   assert.deepEqual(parseArgs(['album', '-o', 'out.mp4', '--exif']), {
     command: 'render',
@@ -33,6 +35,7 @@ test('render command accepts --exif, --sign, and --dark flags', () => {
     exif: true,
     sign: false,
     dark: false,
+    trim: null,
   });
 });
 
@@ -40,6 +43,19 @@ test('render command rejects an unknown flag before or after the folder', () => 
   assert.throws(() => parseArgs(['--exfi']), /未知参数: --exfi/);
   assert.throws(() => parseArgs(['--exfi', 'album']), /未知参数: --exfi/);
   assert.throws(() => parseArgs(['album', '--exfi']), /未知参数: --exfi/);
+});
+
+test('render command accepts one-time trim overrides', () => {
+  assert.equal(parseArgs(['album', '--trim', 'full']).trim, 'full');
+  assert.equal(parseArgs(['--trim', 'auto', 'album']).trim, 'auto');
+  assert.equal(parseArgs(['album', '--trim', '12.5']).trim, '12.5');
+});
+
+test('render command rejects invalid trim overrides', () => {
+  for (const value of ['never', '0', '-2', 'Infinity', '0x10']) {
+    assert.throws(() => parseArgs(['album', '--trim', value]), /--trim/);
+  }
+  assert.throws(() => parseArgs(['album', '--trim']), /--trim/);
 });
 
 test('a leading `doctor` token routes to the doctor command', () => {
@@ -82,7 +98,7 @@ test('a leading `help` token (or -h / --help) routes to the help command', () =>
 });
 
 test('a path-qualified folder named doctor/lyrics/still/fetch/help is the escape hatch, not a verb', () => {
-  const flags = {exif: false, sign: false, dark: false};
+  const flags = {exif: false, sign: false, dark: false, trim: null};
   assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null, ...flags});
   assert.deepEqual(parseArgs(['./fetch']), {command: 'render', folder: './fetch', output: null, ...flags});
   assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null, ...flags});

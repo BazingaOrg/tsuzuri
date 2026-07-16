@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import {scanFolder, scanFolderLoose} from './project.mjs';
+import {hasExplicitTrimConfig, scanFolder, scanFolderLoose, writeTrimConfig} from './project.mjs';
 
 const makeFolder = (files) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-scan-'));
@@ -65,6 +65,33 @@ test('root and audio/ files are counted together without a silent priority', () 
   try {
     assert.deepEqual(scanFolderLoose(dir).audios, ['audio/nested.m4a', 'root.mp3']);
     assert.throws(() => scanFolder(dir), /audio\/nested\.m4a.*root\.mp3/s);
+  } finally {
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('writeTrimConfig creates a minimal config and detects the explicit key', () => {
+  const dir = makeFolder([]);
+  try {
+    assert.equal(hasExplicitTrimConfig(dir), false);
+    writeTrimConfig(dir, 'auto');
+    assert.equal(fs.readFileSync(path.join(dir, 'tsuzuri.toml'), 'utf8'), 'trim = "auto"\n');
+    assert.equal(hasExplicitTrimConfig(dir), true);
+  } finally {
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('writeTrimConfig replaces only the active line and preserves comments', () => {
+  const dir = makeFolder([]);
+  const config = '# trim = "auto"\r\nfps = 30\r\ntrim = "auto" # keep this\r\n';
+  fs.writeFileSync(path.join(dir, 'tsuzuri.toml'), config);
+  try {
+    writeTrimConfig(dir, 'full');
+    assert.equal(
+      fs.readFileSync(path.join(dir, 'tsuzuri.toml'), 'utf8'),
+      '# trim = "auto"\r\nfps = 30\r\ntrim = "full" # keep this\r\n',
+    );
   } finally {
     fs.rmSync(dir, {recursive: true, force: true});
   }

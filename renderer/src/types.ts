@@ -43,6 +43,13 @@ export type Branding = {
   intro?: boolean;
 };
 
+export type TrimDecision = {
+  mode: 'auto' | 'full' | 'seconds';
+  applied: boolean;
+  full_duration: number;
+  trimmed_duration: number;
+};
+
 export type TimelineMeta = {
   version: number;
   audio: string;
@@ -52,7 +59,9 @@ export type TimelineMeta = {
   fps: number;
   background: string;
   photo_scale: number;
+  trim?: TrimDecision;
   input_hash?: string;
+  plan_checksum?: string;
   branding?: Branding;
   /** 渲染时覆盖注入的照片签名落款开关;缺省 false */
   sign?: boolean;

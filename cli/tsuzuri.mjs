@@ -8,7 +8,9 @@
  */
 
 import {spawnSync} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -21,6 +23,7 @@ import {MENU_BACK, runMenu, writeBanner, writeFarewell} from './menu.mjs';
 import {PromptAbortError, PromptQuitError} from './prompts.mjs';
 import {runStill} from './still.mjs';
 import {term} from './term.mjs';
+import {maybePersistTrimChoice} from './trim.mjs';
 import {FIXES} from './dependencies.mjs';
 import {runCommand} from './run-command.mjs';
 
@@ -95,7 +98,7 @@ export const runCommandFromArgv = async (argv) => {
   }
   if (parsed.command === 'still') return runStill(parsed);
 
-  const {folder: folderArg, output, exif, sign, dark} = parsed;
+  const {folder: folderArg, output, exif, sign, dark, trim} = parsed;
   const folder = path.resolve(folderArg);
   if (!fs.existsSync(folder)) throw new CliError(`找不到路径: ${folder}`);
   if (!fs.statSync(folder).isDirectory()) {
@@ -123,10 +126,13 @@ export const runCommandFromArgv = async (argv) => {
     term.warn(`已复制旧版 JSON 到 metadata/: ${copied.join(', ')}(原文件保留)`);
   }
 
-  const hashFiles = [audio, ...photos];
-  if (fs.existsSync(path.join(folder, 'tsuzuri.toml'))) hashFiles.push('tsuzuri.toml');
-  if (lyrics) hashFiles.push(lyrics);
-  const hash = computeInputHash(folder, hashFiles);
+  const inputFiles = () => {
+    const files = [audio, ...photos];
+    if (fs.existsSync(path.join(folder, 'tsuzuri.toml'))) files.push('tsuzuri.toml');
+    if (lyrics) files.push(lyrics);
+    return files;
+  };
+  let hash = computeInputHash(folder, inputFiles());
 
   const timelinePath = project.timelinePath;
   let skipAnalyze = false;
@@ -162,17 +168,44 @@ export const runCommandFromArgv = async (argv) => {
   // 交给 plan.py 自己判断——它靠内容校验和识别文件是否被手动改过,手改过就
   // 原样保留,没被动过就悄悄升级到最新分配算法(见 plan.py _content_checksum)
   term.start('规划照片时间线');
-  const planCode = runCommand('规划照片时间线', 'uv', [
-    'run', '--project', analyzer, 'tsuzuri-plan', folder,
-    '--beats', project.beatsPath,
-    '--lyrics', project.lyricsPath,
-    '--input-hash', hash,
-    '-o', project.timelinePath,
-  ]);
+  const runPlan = (inputHash, trimOverride = trim) => {
+    const statusPath = path.join(os.tmpdir(), `tsuzuri-plan-${randomUUID()}.json`);
+    const args = [
+      'run', '--project', analyzer, 'tsuzuri-plan', folder,
+      '--beats', project.beatsPath,
+      '--lyrics', project.lyricsPath,
+      '--input-hash', inputHash,
+      '--status-output', statusPath,
+      '-o', project.timelinePath,
+    ];
+    if (trimOverride !== null) args.push('--trim', trimOverride);
+    try {
+      const code = runCommand('规划照片时间线', 'uv', args);
+      let outcome = null;
+      if (fs.existsSync(statusPath)) {
+        outcome = JSON.parse(fs.readFileSync(statusPath, 'utf8')).outcome ?? null;
+      }
+      return {code, outcome};
+    } finally {
+      fs.rmSync(statusPath, {force: true});
+    }
+  };
+  const {code: planCode, outcome: planOutcome} = runPlan(hash);
   if (planCode !== 0) return planCode;
   term.success('照片时间线规划完成');
 
-  const tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
+  let tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
+  const trimChoice = await maybePersistTrimChoice({
+    folder, timeline: tl, trimOverride: trim, planOutcome,
+  });
+  if (trimChoice !== null) {
+    hash = computeInputHash(folder, inputFiles());
+    term.start('按裁剪选择重新规划照片时间线');
+    const {code: replanCode} = runPlan(hash, null);
+    if (replanCode !== 0) return replanCode;
+    term.success('裁剪选择已保存到 tsuzuri.toml');
+    tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
+  }
   const n = tl.photos.length;
   term.info('渲染计划');
   term.detail(

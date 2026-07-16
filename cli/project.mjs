@@ -106,3 +106,59 @@ export const computeInputHash = (folder, files) => {
   }
   return hash.digest('hex').slice(0, 16);
 };
+
+const trimKeyPattern = /^\s*(?:trim|"trim"|'trim')\s*=/;
+
+export const hasExplicitTrimConfig = (folder) => {
+  const tomlPath = path.join(folder, 'tsuzuri.toml');
+  if (!fs.existsSync(tomlPath)) return false;
+  return fs.readFileSync(tomlPath, 'utf8').split(/\r?\n/).some((line) => trimKeyPattern.test(line));
+};
+
+const trailingTomlComment = (line) => {
+  let quote = null;
+  let escaped = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (quote === '"' && char === '\\') {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '#') return line.slice(i);
+  }
+  return '';
+};
+
+/** 文本级写回 trim，避免 TOML 序列化丢掉用户的顺序、空行和注释。 */
+export const writeTrimConfig = (folder, value) => {
+  if (!['auto', 'full'].includes(value)) throw new TypeError(`不支持的 trim 配置: ${value}`);
+  const tomlPath = path.join(folder, 'tsuzuri.toml');
+  const source = fs.existsSync(tomlPath) ? fs.readFileSync(tomlPath, 'utf8') : '';
+  const newline = source.includes('\r\n') ? '\r\n' : '\n';
+  const lines = source.split(/\r?\n/);
+  const index = lines.findIndex((line) => trimKeyPattern.test(line));
+  const configLine = `trim = "${value}"`;
+
+  if (index >= 0) {
+    const indent = lines[index].match(/^\s*/)?.[0] ?? '';
+    const comment = trailingTomlComment(lines[index]);
+    lines[index] = `${indent}${configLine}${comment ? ` ${comment}` : ''}`;
+    fs.writeFileSync(tomlPath, lines.join(newline), 'utf8');
+    return;
+  }
+
+  const prefix = source.length === 0 || source.endsWith('\n') ? source : `${source}${newline}`;
+  fs.writeFileSync(tomlPath, `${prefix}${configLine}${newline}`, 'utf8');
+};
