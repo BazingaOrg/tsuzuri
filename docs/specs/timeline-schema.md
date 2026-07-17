@@ -4,6 +4,8 @@
 
 字段变更时应同步更新本文档、planner 输出和 renderer 类型。
 
+`beats.json` v1 可含与 `beats` 等长的 `energy` 数组；每项为有限的 0–1 数值。缺失或无效时 planner 回退 uniform pacing。
+
 ## 顶层结构
 
 ```jsonc

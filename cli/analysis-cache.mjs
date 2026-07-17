@@ -16,6 +16,8 @@ export const readAnalysisFingerprint = (analyzer, spawn = spawnSync) => {
     const value = JSON.parse(result.stdout);
     if (
       value?.version !== 1 ||
+      !Number.isInteger(value.beat_features_version) ||
+      value.beat_features_version < 1 ||
       !['mlx', 'cuda', 'cpu'].includes(value.backend) ||
       typeof value.model !== 'string' ||
       typeof value.demucs_available !== 'boolean'

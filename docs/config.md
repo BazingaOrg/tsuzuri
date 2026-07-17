@@ -24,6 +24,7 @@
 | `min_gap` | `2.0` | 相邻切换点最小间隔（秒） |
 | `flash_avg_threshold` | `2.0` | 平均每张展示低于此值时进入逐拍快闪模式 |
 | `flash_min_gap` | `0.8` | 快闪模式的最小切换间隔（秒） |
+| `pacing` | `"dynamic"` | `dynamic` 按逐拍能量调整切换密度；`uniform` 严格使用原均匀网格 |
 | `trim` | `"auto"` | `"auto"` 自动裁剪、`"full"` 播完整首歌，或填正数秒数并吸附到最近重拍 |
 | `trim_avg_threshold` | `10.0` | `trim = "auto"` 时，平均每张展示超过此值才裁短歌曲 |
 | `trim_target_avg` | `8.0` | `trim = "auto"` 时，裁歌后的目标平均每张展示时长（秒） |
@@ -42,6 +43,8 @@ tsuzuri ./osaka-trip --trim 120
 `--portrait`（1080×1920）和 `--square`（1080×1080）是一次性渲染预设，互斥，优先于 TOML 的 `width`/`height`，但不写回 `timeline.json`。不带预设时仍完全沿用 TOML 画布设置；`still` 也支持这两个参数。
 
 `chapters = false` 可关闭跨天照片自动插入的日期章节卡；默认开启，且仅在所有照片都有可解析 EXIF 拍摄日期时生效。
+
+`pacing = "dynamic"`（默认）按逐拍能量调整照片切换密度，副歌偏密、主歌偏疏；`pacing = "uniform"` 可严格回退到原均匀网格。快闪模式始终使用 uniform。
 
 ## 字幕与识别
 

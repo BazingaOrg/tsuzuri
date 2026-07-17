@@ -41,6 +41,14 @@ def test_trim_config_rejects_invalid_values(tmp_path: Path, value: str):
         plan.load_config(tmp_path)
 
 
+@pytest.mark.parametrize("value", ['"adaptive"', "1", "[]"])
+def test_pacing_config_rejects_invalid_values_with_clear_error(tmp_path: Path, value: str, capsys):
+    (tmp_path / "tsuzuri.toml").write_text(f"pacing = {value}\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        plan.load_config(tmp_path)
+    assert 'pacing 必须是 "dynamic" 或 "uniform"' in capsys.readouterr().err
+
+
 def test_auto_trim_applies_and_writes_meta(tmp_path: Path):
     make_photos(tmp_path)
     timeline = plan.build_timeline(tmp_path, make_beats(), [], dict(plan.DEFAULTS), None)

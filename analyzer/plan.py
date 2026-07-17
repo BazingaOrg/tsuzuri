@@ -21,7 +21,7 @@ from pathlib import Path
 from PIL import ExifTags, Image
 
 import term
-from beat_alloc import allocate_switch_points
+from beat_alloc import allocate_switch_points, dynamic_switch_ideals
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -42,6 +42,7 @@ DEFAULTS = {
     "trim": "auto",             # auto(自动裁剪)| full(整首)| 正数秒数
     "subtitles": True,           # 字幕轨总开关
     "chapters": True,            # EXIF 跨天时插入日期章节卡
+    "pacing": "dynamic",        # dynamic(按能量疏密)|uniform(旧版均匀)
     # 片头/片尾运行默认仅用于规划;展示默认值的单一来源在 renderer/theme.ts
     "outro_text": "",
     "signature": "",             # 空串 = 内置签名;非空为素材夹内 .svg 相对路径
@@ -181,6 +182,9 @@ def load_config(folder: Path) -> dict:
     _validate_trim(cfg)
     if not isinstance(cfg["chapters"], bool):
         term.error(f"tsuzuri.toml: chapters 必须是 true 或 false,收到 {cfg['chapters']!r}")
+        raise SystemExit(1)
+    if not isinstance(cfg["pacing"], str) or cfg["pacing"] not in {"dynamic", "uniform"}:
+        term.error('tsuzuri.toml: pacing 必须是 "dynamic" 或 "uniform"')
         raise SystemExit(1)
     return cfg
 
@@ -343,10 +347,14 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     # 但绝不比"均分网格"本该落点更早(allocate_switch_points 内部取 max 兜底)
     not_after = duration - WHITE_FADE_DURATION - MIN_PHOTO_VISIBLE
 
+    ideal_points = None
+    if not is_flash and cfg["pacing"] == "dynamic":
+        ideal_points = dynamic_switch_ideals(duration, n, beats["beats"], beats.get("energy"), head_offset=head_offset)
     switches = allocate_switch_points(
         duration, n, candidates,
         min_gap=min_gap, not_before=not_before,
         head_offset=head_offset, not_after=not_after,
+        ideal_points=ideal_points,
     )
     if len(switches) < n - 1:
         dropped = n - 1 - len(switches)

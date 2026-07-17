@@ -21,6 +21,7 @@ import numpy as np
 import soundfile as sf
 
 import term
+from beat_features import BEAT_FEATURES_VERSION
 from lyrics_input import LrcError, parse_lrc
 
 
@@ -48,6 +49,26 @@ def load_audio(audio_path: Path) -> tuple[np.ndarray, int]:
                 raise RuntimeError(f"FFmpeg 音频解码失败:{detail}")
             samples, sr = sf.read(str(decoded), dtype="float32", always_2d=True)
     return np.mean(samples, axis=1, dtype=np.float32), int(sr)
+
+
+def beat_energy(y: np.ndarray, sr: int, beat_times: np.ndarray, duration: float) -> list[float]:
+    """Per-beat RMS energy, robustly normalized within one song."""
+    frame_length = max(16, min(2048, round(sr * 0.05)))
+    hop_length = max(1, frame_length // 2)
+    frame_rms = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length, center=False)[0]
+    frame_times = librosa.frames_to_time(np.arange(len(frame_rms)), sr=sr, hop_length=hop_length)
+    values = []
+    bounds = [*map(float, beat_times), duration]
+    for start, end in zip(bounds, bounds[1:]):
+        selected = frame_rms[(frame_times >= start) & (frame_times < end)]
+        values.append(float(np.mean(selected)) if len(selected) else 0.0)
+    if not values:
+        return []
+    db = 20 * np.log10(np.asarray(values, dtype=np.float64) + 1e-10)
+    low, high = np.percentile(db, [10, 90])
+    if not np.isfinite(low) or not np.isfinite(high) or high - low < 1e-6:
+        return [0.5] * len(values)
+    return [round(float(v), 6) for v in np.clip((db - low) / (high - low), 0, 1)]
 
 
 def analyze_beats(audio_path: Path) -> dict:
@@ -86,6 +107,7 @@ def analyze_beats(audio_path: Path) -> dict:
         "duration": round(duration, 3),
         "bpm": round(bpm, 2),
         "beats": [round(float(t), 3) for t in beat_times],
+        "energy": beat_energy(y, sr, beat_times, duration),
         "downbeats": [round(float(t), 3) for t in downbeat_times],
         "first_strong_onset": round(first_strong_onset, 3),
     }

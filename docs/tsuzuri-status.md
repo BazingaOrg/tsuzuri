@@ -59,6 +59,7 @@ Analyze → Plan → output/metadata/timeline.json → Render → output/*.mp4
 - 默认视频写入素材目录的 `output/`，分析文件与交互偏好写入 `output/metadata/`；旧 `metadata/` 首次运行时会复制保留
 - `--portrait` / `--square` 可临时输出 1080×1920 / 1080×1080，不改时间线；竖版 EXIF 展签自动纵排
 - 所有照片 EXIF 日期完整且跨天时，默认插入日期章节卡；`chapters = false` 可关闭
+- 默认按 beats.json 的逐拍能量动态分配切换密度；`pacing = "uniform"` 可回退原行为，无效能量数据也会自动回退
 - `fetch` 新音频和 LRC 写入 `audio/`；用户自备文件也可继续放在素材根目录
 
 ## 待验证与已知限制

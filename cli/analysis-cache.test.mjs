@@ -12,7 +12,7 @@ import {
   writeAnalysisManifest,
 } from './analysis-cache.mjs';
 
-const RUNTIME = JSON.stringify({version: 1, backend: 'mlx', model: 'medium', demucs_available: false});
+const RUNTIME = JSON.stringify({version: 1, beat_features_version: 1, backend: 'mlx', model: 'medium', demucs_available: false});
 
 const makeProject = () => {
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-analysis-cache-'));
@@ -63,7 +63,7 @@ test('analysis hash tracks normalized demucs and the effective analyzer runtime'
       computeAnalysisHash(project.folder, {
         ...inputs,
         runtimeFingerprint: JSON.stringify({
-          version: 1, backend: 'cpu', model: 'small', demucs_available: true,
+          version: 1, beat_features_version: 1, backend: 'cpu', model: 'small', demucs_available: true,
         }),
       }),
       computeAnalysisHash(project.folder, inputs),
@@ -112,12 +112,22 @@ test('manifest requires matching version, hash, and both valid analyzer artifact
 test('runtime fingerprint accepts only a complete analyzer response', () => {
   const spawn = (_cmd, _args, _opts) => ({
     status: 0,
-    stdout: '{"version":1,"backend":"cpu","model":"small","demucs_available":true}\n',
+    stdout: '{"version":1,"beat_features_version":1,"backend":"cpu","model":"small","demucs_available":true}\n',
   });
   assert.equal(
     readAnalysisFingerprint('/analyzer', spawn),
-    '{"version":1,"backend":"cpu","model":"small","demucs_available":true}',
+    '{"version":1,"beat_features_version":1,"backend":"cpu","model":"small","demucs_available":true}',
   );
   assert.equal(readAnalysisFingerprint('/analyzer', () => ({status: 1, stdout: ''})), null);
   assert.equal(readAnalysisFingerprint('/analyzer', () => ({status: 0, stdout: '{}'})), null);
+  assert.equal(readAnalysisFingerprint('/analyzer', () => ({status: 0, stdout: '{"version":1,"backend":"cpu","model":"small","demucs_available":true}'})), null);
+  // Node validates the shape only. The full runtime fingerprint is part of the
+  // analysis hash, so a newer Python feature version invalidates old manifests.
+  assert.equal(
+    readAnalysisFingerprint('/analyzer', () => ({
+      status: 0,
+      stdout: '{"version":1,"beat_features_version":2,"backend":"cpu","model":"small","demucs_available":true}',
+    })),
+    '{"version":1,"beat_features_version":2,"backend":"cpu","model":"small","demucs_available":true}',
+  );
 });

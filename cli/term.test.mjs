@@ -326,7 +326,7 @@ test(
           'fs.appendFileSync(process.env.TSUZURI_TEST_CALLS, JSON.stringify(args) + "\\n");\n' +
           'const valueAfter = (flag) => args[args.indexOf(flag) + 1];\n' +
           'if (args.includes("tsuzuri-analysis-fingerprint")) {\n' +
-          '  console.log("{\\"version\\":1,\\"backend\\":\\"cpu\\",\\"model\\":\\"small\\",\\"demucs_available\\":false}");\n' +
+          '  console.log("{\\"version\\":1,\\"beat_features_version\\":1,\\"backend\\":\\"cpu\\",\\"model\\":\\"small\\",\\"demucs_available\\":false}");\n' +
           '  process.exit(0);\n' +
           '}\n' +
           'if (args.includes("tsuzuri-analyze")) {\n' +
@@ -383,7 +383,7 @@ test(
       writeFileSync(
         join(bin, 'uv'),
         '#!/usr/bin/env node\n' +
-          'if (process.argv.includes("tsuzuri-analysis-fingerprint")) console.log("{\\"version\\":1,\\"backend\\":\\"cpu\\",\\"model\\":\\"small\\",\\"demucs_available\\":false}");\n',
+          'if (process.argv.includes("tsuzuri-analysis-fingerprint")) console.log("{\\"version\\":1,\\"beat_features_version\\":1,\\"backend\\":\\"cpu\\",\\"model\\":\\"small\\",\\"demucs_available\\":false}");\n',
       );
       chmodSync(join(bin, 'uv'), 0o755);
       writeFileSync(

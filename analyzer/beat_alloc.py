@@ -12,6 +12,78 @@ MVP:贪心吸附。理想均匀网格 → 吸附到最近的候选节拍(优先�
 from __future__ import annotations
 
 from bisect import bisect_left
+import math
+
+
+def _bounded_intervals(intervals: list[float], average: float) -> list[float]:
+    """Project intervals onto [0.6, 1.6] * average while preserving their sum."""
+    lower = 0.6 * average
+    upper = 1.6 * average
+    result = list(intervals)
+    free = set(range(len(result)))
+    remaining = sum(intervals)
+
+    while free:
+        free_total = sum(result[index] for index in free)
+        scale = remaining / free_total if free_total > 0 else 1.0
+        changed = False
+        for index in list(free):
+            value = result[index] * scale
+            if value < lower:
+                result[index] = lower
+            elif value > upper:
+                result[index] = upper
+            else:
+                continue
+            remaining -= result[index]
+            free.remove(index)
+            changed = True
+        if not changed:
+            for index in free:
+                result[index] *= scale
+            break
+    return result
+
+
+def dynamic_switch_ideals(duration: float, n_photos: int, beats: list[float], energy: object,
+                          *, head_offset: float = 0.0) -> list[float] | None:
+    """Equal-density targets; invalid optional energy asks the caller to use uniform."""
+    if not isinstance(energy, list) or len(energy) != len(beats) or not beats:
+        return None
+    if any(not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or not 0 <= value <= 1 for value in energy):
+        return None
+    segments: list[tuple[float, float, float]] = []
+    boundaries = [head_offset, *[float(t) for t in beats if head_offset < float(t) < duration], duration]
+    for start, end in zip(boundaries, boundaries[1:]):
+        index = max(0, bisect_left(beats, start) - (0 if start in beats else 1))
+        index = min(index, len(energy) - 1)
+        if end > start:
+            density = 1.0 / (1.6 - float(energy[index]))
+            segments.append((start, end, density))
+    if not segments:
+        return None
+    total = sum((end - start) * density for start, end, density in segments)
+    ideals = []
+    for slot in range(1, n_photos):
+        target = total * slot / n_photos
+        acc = 0.0
+        for start, end, density in segments:
+            mass = (end - start) * density
+            if acc + mass >= target:
+                ideals.append(start + (target - acc) / density)
+                break
+            acc += mass
+    if len(ideals) != n_photos - 1:
+        return None
+    boundaries = [head_offset, *ideals, duration]
+    intervals = [end - start for start, end in zip(boundaries, boundaries[1:])]
+    bounded = _bounded_intervals(intervals, (duration - head_offset) / n_photos)
+    result = []
+    elapsed = head_offset
+    for interval in bounded[:-1]:
+        elapsed += interval
+        result.append(elapsed)
+    return result
 
 
 def allocate_switch_points(
@@ -23,6 +95,7 @@ def allocate_switch_points(
     not_before: float = 0.0,
     head_offset: float = 0.0,
     not_after: float | None = None,
+    ideal_points: list[float] | None = None,
 ) -> list[float]:
     """返回 n_photos - 1 个切换点(秒),严格递增。
 
@@ -51,7 +124,9 @@ def allocate_switch_points(
     span = duration - head_offset
     max_snap = span / n_photos / 2
 
-    grid = [head_offset + i * span / n_photos for i in range(1, n_photos)]
+    grid = ideal_points if ideal_points is not None else [head_offset + i * span / n_photos for i in range(1, n_photos)]
+    if len(grid) != n_photos - 1:
+        raise ValueError("ideal_points length must be n_photos - 1")
     last_idx = len(grid) - 1
     upper = max(grid[last_idx], not_after) if not_after is not None else None
 
