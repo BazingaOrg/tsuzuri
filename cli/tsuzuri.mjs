@@ -220,10 +220,10 @@ export const runCommandFromArgv = async (
     ...(trimPromptRunner === undefined ? {} : {promptRunner: trimPromptRunner}),
   });
   if (trimChoice === 'full') {
-    term.start('按裁剪选择重新规划照片时间线');
     const {code: replanCode} = runPlan(hash, 'full');
     if (replanCode !== 0) return replanCode;
-    term.success('裁剪选择已保存到偏好设置');
+    term.detail('已按完整歌曲重新规划');
+    term.success('已记住你的选择');
     tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   }
   const n = tl.photos.length;

@@ -419,16 +419,20 @@ test(
         assert.equal(result.status, 0, result.stderr);
         const calls = JSON.parse(readFileSync(callsPath, 'utf8'));
         assert.ok(calls.some((args) => args.includes('tsuzuri-plan')), JSON.stringify(calls));
-        return calls.filter((args) => args.includes('tsuzuri-plan'));
+        return {plannerCalls: calls.filter((args) => args.includes('tsuzuri-plan')), stdout: result.stdout};
       };
       const trimArg = (args) => args.includes('--trim') ? args[args.indexOf('--trim') + 1] : null;
 
-      assert.deepEqual(run({name: 'default'}).map(trimArg), [null]);
-      assert.deepEqual(run({name: 'preference', preference: 'full'}).map(trimArg), ['full']);
-      assert.deepEqual(run({name: 'toml', toml: 'trim = "full"\n', preference: 'auto'}).map(trimArg), [null]);
-      assert.deepEqual(run({name: 'cli', toml: 'trim = "full"\n', preference: 'full', cli: ['--trim', 'auto']}).map(trimArg), ['auto']);
-      assert.deepEqual(run({name: 'accept-auto', choice: 'auto'}).map(trimArg), [null]);
-      assert.deepEqual(run({name: 'choose-full', choice: 'full'}).map(trimArg), [null, 'full']);
+      assert.deepEqual(run({name: 'default'}).plannerCalls.map(trimArg), [null]);
+      assert.deepEqual(run({name: 'preference', preference: 'full'}).plannerCalls.map(trimArg), ['full']);
+      assert.deepEqual(run({name: 'toml', toml: 'trim = "full"\n', preference: 'auto'}).plannerCalls.map(trimArg), [null]);
+      assert.deepEqual(run({name: 'cli', toml: 'trim = "full"\n', preference: 'full', cli: ['--trim', 'auto']}).plannerCalls.map(trimArg), ['auto']);
+      assert.deepEqual(run({name: 'accept-auto', choice: 'auto'}).plannerCalls.map(trimArg), [null]);
+      const full = run({name: 'choose-full', choice: 'full'});
+      assert.deepEqual(full.plannerCalls.map(trimArg), [null, 'full']);
+      assert.match(full.stdout, /└ 已按完整歌曲重新规划/);
+      assert.match(full.stdout, /● 已记住你的选择/);
+      assert.doesNotMatch(full.stdout, /按裁剪选择重新规划照片时间线/);
       assert.equal(existsSync(join(root, 'accept-auto', 'tsuzuri.toml')), false);
       assert.equal(existsSync(join(root, 'choose-full', 'tsuzuri.toml')), false);
     } finally {
