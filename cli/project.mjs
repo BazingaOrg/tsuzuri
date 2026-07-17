@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {CliError} from './options.mjs';
-import {formatEquivalentCommand} from './menu.mjs';
+import {formatEquivalentCommand} from './command-format.mjs';
 
 const LEGACY_JSON = ['beats.json', 'lyrics.json', 'analysis.json', 'timeline.json'];
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);

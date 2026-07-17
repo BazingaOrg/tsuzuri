@@ -6,7 +6,6 @@ import test from 'node:test';
 
 import {
   buildArgvFromChoices,
-  formatEquivalentCommand,
   MENU_BACK,
   normalizeDroppedPath,
   runMenu,
@@ -87,21 +86,6 @@ test('buildArgvFromChoices maps each menu entry onto CLI argv', () => {
   assert.deepEqual(buildArgvFromChoices({choice: '4'}), ['doctor']);
   assert.deepEqual(buildArgvFromChoices({choice: '5', target: './trip'}), ['fetch', './trip']);
   assert.equal(buildArgvFromChoices({choice: '9'}), null);
-});
-
-test('formatEquivalentCommand quotes arguments containing spaces', () => {
-  assert.equal(
-    formatEquivalentCommand(['still', './p', '--exif']),
-    'node cli/tsuzuri.mjs still ./p --exif',
-  );
-  assert.equal(
-    formatEquivalentCommand(['still', './p', '--exif', '--sign', '--dark']),
-    'node cli/tsuzuri.mjs still ./p --exif --sign --dark',
-  );
-  assert.equal(
-    formatEquivalentCommand(['still', '/Users/me/My Photos']),
-    'node cli/tsuzuri.mjs still "/Users/me/My Photos"',
-  );
 });
 
 test('runMenu reports invalid choices and q exits cleanly', async () => {

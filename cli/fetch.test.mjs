@@ -12,25 +12,17 @@ import {
   buildAudioFilename,
   buildLyricsQuery,
   buildNextStepMessage,
-  checkYtDlp,
   chooseSingleAudio,
-  detectLyricsScript,
-  downloadWithYtDlp,
   durationDelta,
   filterSyncedRecords,
   formatDuration,
-  formatLrcPageTitle,
-  formatLrcPreview,
   formatLyricsCandidate,
   installDownloadedAudio,
   installDownloadedLyrics,
   lyricsFlow,
   parseCurlResponse,
-  parseLrc,
-  parseSearchLine,
   planOffers,
   probeAudio,
-  preferSimplifiedChineseLrc,
   runFetch,
   sanitizeFilePart,
   searchLyricsRecords,
@@ -60,23 +52,6 @@ const runFetchWithAnswers = async (folder, answers) => {
   }
 };
 
-test('parseSearchLine splits yt-dlp print output and tolerates NA fields', () => {
-  assert.deepEqual(parseSearchLine('abc123\t晴天 (官方MV)\t4:29\t周杰倫'), {
-    id: 'abc123',
-    title: '晴天 (官方MV)',
-    duration: '4:29',
-    uploader: '周杰倫',
-  });
-  assert.deepEqual(parseSearchLine('abc123\tTitle\tNA\tNA'), {
-    id: 'abc123',
-    title: 'Title',
-    duration: '?:??',
-    uploader: '未知频道',
-  });
-  assert.equal(parseSearchLine(''), null);
-  assert.equal(parseSearchLine('only-one-field'), null);
-});
-
 test('buildLyricsQuery prefers tags and falls back to a cleaned filename', () => {
   assert.equal(buildLyricsQuery({title: '晴天', artist: '周杰伦'}), '晴天 周杰伦');
   assert.equal(buildLyricsQuery({title: '晴天', artist: null}), '晴天');
@@ -104,58 +79,6 @@ test('filterSyncedRecords drops instrumental and lyrics without a timeline', () 
     [synced],
   );
   assert.deepEqual(filterSyncedRecords(null), []);
-});
-
-test('parseLrc reads timestamps, skips metadata, and sorts by time', () => {
-  const lrc = '[ti:晴天]\n[00:32.10]第二句\n[00:27.5]第一句\n[01:00.00][02:00.00]重复句\n[00:40.00]\n';
-  assert.deepEqual(parseLrc(lrc), [
-    {time: 27.5, text: '第一句'},
-    {time: 32.1, text: '第二句'},
-    {time: 60, text: '重复句'},
-    {time: 120, text: '重复句'},
-  ]);
-});
-
-test('formatLrcPreview pages through all lyrics without truncating rows', () => {
-  const entries = Array.from({length: 15}, (_, i) => ({time: i * 10, text: `行${i}`}));
-  const lines = formatLrcPreview(entries, {offset: 3, limit: 3});
-  assert.deepEqual(lines, ['[00:30.0] 行3', '[00:40.0] 行4', '[00:50.0] 行5']);
-  assert.equal(formatLrcPageTitle(15, 3, 3), '歌词预览 4-6/共 15 行');
-  assert.equal(formatLrcPreview(entries.slice(0, 2)).length, 2);
-});
-
-test('traditional Chinese LRCLIB lyrics are converted to simplified Chinese', async () => {
-  const source = '[ar:周傑倫]\n[00:01.00]故事的小黃花\n[00:02.00]從出生那年就飄著\n[00:03.00]為妳翹課';
-  assert.equal(detectLyricsScript(source), 'zh');
-  assert.deepEqual(await preferSimplifiedChineseLrc(source), {
-    lyrics: '[ar:周杰伦]\n[00:01.00]故事的小黄花\n[00:02.00]从出生那年就飘着\n[00:03.00]为你翘课',
-    script: 'zh',
-    converted: true,
-  });
-});
-
-test('already-simplified Chinese lyrics remain unchanged', async () => {
-  const source = '[00:01.00]故事的小黄花\n[00:02.00]从出生那年就飘着';
-  assert.deepEqual(await preferSimplifiedChineseLrc(source), {
-    lyrics: source,
-    script: 'zh',
-    converted: false,
-  });
-});
-
-test('English and Japanese lyrics bypass Chinese conversion', async () => {
-  const english = '[00:01.00]Come along with me';
-  const japanese = '[00:01.00]晴れた空に君を思う';
-  assert.deepEqual(await preferSimplifiedChineseLrc(english), {
-    lyrics: english,
-    script: 'other',
-    converted: false,
-  });
-  assert.deepEqual(await preferSimplifiedChineseLrc(japanese), {
-    lyrics: japanese,
-    script: 'ja',
-    converted: false,
-  });
 });
 
 test('formatDuration renders m:ss and tolerates unknown values', () => {
@@ -293,46 +216,6 @@ test('lyrics keyword prompt explains enter/back and returns before network acces
   }
 });
 
-test('yt-dlp downloads outside the material folder and safely replaces a same-name audio', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
-  const folder = path.join(root, 'material');
-  fs.mkdirSync(folder);
-  const oldFile = path.join(folder, 'Song - Artist.m4a');
-  fs.writeFileSync(oldFile, 'old audio');
-
-  let spawnCount = 0;
-  const result = downloadWithYtDlp('https://example.test/video', {
-    tempParent: root,
-    stdio: 'pipe',
-    spawn: (_command, args) => {
-      spawnCount += 1;
-      const template = args[args.indexOf('-o') + 1];
-      const output = template.replace('%(title)s', 'remote-video-title').replace('%(ext)s', 'm4a');
-      fs.writeFileSync(output, 'new audio');
-      return {status: 0};
-    },
-  });
-
-  try {
-    assert.equal(result.ok, true);
-    assert.equal(spawnCount, 1);
-    assert.equal(fs.readFileSync(oldFile, 'utf8'), 'old audio');
-    assert.notEqual(path.dirname(result.source), folder);
-    const installed = installDownloadedAudio({
-      source: result.source,
-      folder,
-      filename: 'Song - Artist.m4a',
-      existing: 'Song - Artist.m4a',
-    });
-    assert.equal(installed, 'audio/Song - Artist.m4a');
-    assert.equal(fs.existsSync(oldFile), false);
-    assert.equal(fs.readFileSync(path.join(folder, installed), 'utf8'), 'new audio');
-    assert.deepEqual(fs.readdirSync(folder), ['audio']);
-  } finally {
-    fs.rmSync(root, {recursive: true, force: true});
-  }
-});
-
 test('a failed staged install preserves the existing audio', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-fetch-test-'));
   const oldFile = path.join(root, 'Song.m4a');
@@ -466,11 +349,6 @@ test('explicit fetch defaults to searching lyrics when audio exists without an .
   } finally {
     fs.rmSync(folder, {recursive: true, force: true});
   }
-});
-
-test('checkYtDlp reports missing binary without throwing', () => {
-  assert.deepEqual(checkYtDlp(() => ({error: new Error('ENOENT')})), {ok: false});
-  assert.deepEqual(checkYtDlp(() => ({status: 0, stdout: '2026.01.01\n'})), {ok: true, version: '2026.01.01'});
 });
 
 test('probeAudio lowercases tag keys and swallows ffprobe failures', () => {

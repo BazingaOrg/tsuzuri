@@ -9,23 +9,28 @@
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import {CliError} from './options.mjs';
 import {FIXES} from './dependencies.mjs';
-import {formatEquivalentCommand} from './menu.mjs';
+import {formatEquivalentCommand} from './command-format.mjs';
+import {
+  formatLrcPageTitle,
+  formatLrcPreview,
+  parseLrc,
+  preferSimplifiedChineseLrc,
+  PREVIEW_LINES,
+} from './lrc.mjs';
 import {PICK_BACK, withPrompts} from './prompts.mjs';
 import {AUDIO_DIR, scanFolderLoose} from './project.mjs';
 import {term} from './term.mjs';
+import {checkYtDlp, downloadWithYtDlp, searchYtDlp, SEARCH_LIMIT} from './ytdlp.mjs';
 
 const LRCLIB_BASE = 'https://lrclib.net/api';
 // LRCLIB 要求调用方带可识别的 User-Agent
 const LRCLIB_UA = 'tsuzuri (https://github.com/tsuzuri)';
 // 歌词与音频时长差超过这个秒数,大概率是不同版本(live/剪辑),时间轴会错位
 export const DURATION_WARN_SECONDS = 3;
-const SEARCH_LIMIT = 5;
-const PREVIEW_LINES = 12;
 
 // ---------------------------------------------------------------------------
 // 纯逻辑(fetch.test.mjs 覆盖)
@@ -53,19 +58,6 @@ export const buildAudioFilename = ({title, artist, ext}) => {
   if (!cleanTitle) throw new CliError('歌曲名不能为空');
   const suffix = String(ext ?? '').startsWith('.') ? String(ext) : `.${ext}`;
   return `${cleanTitle}${cleanArtist ? ` - ${cleanArtist}` : ''}${suffix.toLowerCase()}`;
-};
-
-/** 解析 yt-dlp --print "%(id)s\t%(title)s\t%(duration_string)s\t%(channel,uploader)s" 的一行。 */
-export const parseSearchLine = (line) => {
-  const parts = String(line ?? '').split('\t');
-  if (parts.length < 2 || !parts[0].trim()) return null;
-  const clean = (s) => (s && s !== 'NA' ? s.trim() : null);
-  return {
-    id: parts[0].trim(),
-    title: clean(parts[1]) ?? '(无标题)',
-    duration: clean(parts[2]) ?? '?:??',
-    uploader: clean(parts[3]) ?? '未知频道',
-  };
 };
 
 /** 从 ffprobe tags / 文件名推默认歌词关键词。 */
@@ -97,65 +89,6 @@ export const filterSyncedRecords = (records) =>
     (r) => r && typeof r.syncedLyrics === 'string' && r.syncedLyrics.trim() && !r.instrumental,
   );
 
-/** 解析 LRC 文本为 [{time, text}](秒),忽略元数据行;用于落盘前 preview。 */
-export const parseLrc = (text) => {
-  const entries = [];
-  for (const raw of String(text ?? '').split(/\r?\n/)) {
-    const tags = [...raw.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];
-    if (tags.length === 0) continue;
-    const content = raw.replace(/\[[^\]]*\]/g, '').trim();
-    if (!content) continue;
-    for (const tag of tags) {
-      entries.push({time: Number(tag[1]) * 60 + Number(tag[2]), text: content});
-    }
-  }
-  return entries.sort((a, b) => a.time - b.time);
-};
-
-export const formatLrcPreview = (entries, {offset = 0, limit = PREVIEW_LINES} = {}) => {
-  const lines = entries.slice(offset, offset + limit).map((e) => {
-    const minutes = Math.floor(e.time / 60);
-    const seconds = (e.time - minutes * 60).toFixed(1).padStart(4, '0');
-    return `[${String(minutes).padStart(2, '0')}:${seconds}] ${e.text}`;
-  });
-  return lines;
-};
-
-export const formatLrcPageTitle = (total, offset, limit = PREVIEW_LINES) =>
-  `歌词预览 ${offset + 1}-${Math.min(offset + limit, total)}/共 ${total} 行`;
-
-/**
- * 只用于决定是否做繁转简:日文歌词通常含假名,必须原样保留;
- * 有汉字但无假名时按中文处理,英文等其他脚本不处理。
- */
-export const detectLyricsScript = (lrc) => {
-  const entries = parseLrc(lrc);
-  const text = entries.length > 0 ? entries.map((entry) => entry.text).join('\n') : String(lrc ?? '');
-  if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return 'ja';
-  if (/\p{Script=Han}/u.test(text)) return 'zh';
-  return 'other';
-};
-
-let simplifiedChineseConverterPromise = null;
-const getSimplifiedChineseConverter = () => {
-  simplifiedChineseConverterPromise ??= import('opencc-js/t2cn').then(({default: OpenCC}) => {
-    const convertCharacters = OpenCC.Converter({from: 'tw', to: 'cn'});
-    const normalizePronoun = OpenCC.CustomConverter([['妳', '你']]);
-    return (text) => normalizePronoun(convertCharacters(text));
-  });
-  return simplifiedChineseConverterPromise;
-};
-
-/** LRCLIB 中文歌词优先简体;英文/日文及其他脚本原样返回。 */
-export const preferSimplifiedChineseLrc = async (lrc) => {
-  const lyrics = String(lrc ?? '');
-  const script = detectLyricsScript(lyrics);
-  if (script !== 'zh') return {lyrics, script, converted: false};
-  const converter = await getSimplifiedChineseConverter();
-  const simplified = converter(lyrics);
-  return {lyrics: simplified, script, converted: simplified !== lyrics};
-};
-
 /** 解析 `curl -w '\n%{http_code}'` 的输出:末行是状态码,其余是 body。 */
 export const parseCurlResponse = (stdout) => {
   const text = String(stdout ?? '');
@@ -173,62 +106,8 @@ export const planOffers = ({audios, lyrics}) => ({
 });
 
 // ---------------------------------------------------------------------------
-// 外部进程:yt-dlp / ffprobe
+// 外部进程:ffprobe
 // ---------------------------------------------------------------------------
-
-export const checkYtDlp = (spawn = spawnSync) => {
-  const r = spawn('yt-dlp', ['--version'], {encoding: 'utf8'});
-  if (r.error || r.status !== 0) return {ok: false};
-  return {ok: true, version: (r.stdout ?? '').trim()};
-};
-
-const searchYtDlp = (query) => {
-  const r = spawnSync(
-    'yt-dlp',
-    [
-      `ytsearch${SEARCH_LIMIT}:${query}`,
-      '--flat-playlist',
-      '--print', '%(id)s\t%(title)s\t%(duration_string)s\t%(channel,uploader)s',
-    ],
-    {encoding: 'utf8'},
-  );
-  if (r.error || r.status !== 0) {
-    return {ok: false, stderr: (r.stderr ?? '').trim()};
-  }
-  const candidates = (r.stdout ?? '').split('\n').map(parseSearchLine).filter(Boolean);
-  return {ok: true, candidates};
-};
-
-/**
- * 始终下载到素材目录外的临时目录。这既能强制同 URL 重新下载,
- * 也保证 yt-dlp/转码失败时不会碰到已有素材。
- */
-export const downloadWithYtDlp = (
-  url,
-  {spawn = spawnSync, tempParent = os.tmpdir(), stdio = 'inherit'} = {},
-) => {
-  const tempDir = fs.mkdtempSync(path.join(tempParent, 'tsuzuri-fetch-'));
-  const r = spawn(
-    'yt-dlp',
-    ['-x', '--audio-format', 'm4a', '--no-playlist', '-o', path.join(tempDir, '%(title)s.%(ext)s'), url],
-    {stdio},
-  );
-  if (r.error || r.status !== 0) {
-    fs.rmSync(tempDir, {recursive: true, force: true});
-    return {ok: false};
-  }
-  const audios = scanFolderLoose(tempDir).audios;
-  if (audios.length !== 1) {
-    fs.rmSync(tempDir, {recursive: true, force: true});
-    return {ok: false};
-  }
-  return {
-    ok: true,
-    tempDir,
-    audio: audios[0],
-    source: path.join(tempDir, audios[0]),
-  };
-};
 
 /**
  * 先把下载结果复制到素材目录内的隐藏 staging 目录,再替换。

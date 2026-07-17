@@ -7,6 +7,7 @@
 import os from 'node:os';
 import fs from 'node:fs';
 
+import {formatEquivalentCommand} from './command-format.mjs';
 import {PICK_BACK, withPrompts} from './prompts.mjs';
 import {paint, term} from './term.mjs';
 
@@ -84,12 +85,6 @@ export const buildArgvFromChoices = ({choice, target, exif = false, sign = false
   if (choice === '5') return ['fetch', target];
   return null;
 };
-
-const quoteArg = (arg) => (/[\s"'()&]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg);
-
-/** 从仓库运行时可直接复制执行的等效命令(含空格的路径加引号)。 */
-export const formatEquivalentCommand = (argv) =>
-  ['node', 'cli/tsuzuri.mjs', ...argv.map(quoteArg)].join(' ');
 
 /**
  * 交互层:问答收集选择,返回 argv 数组;q 退出时返回 null。
