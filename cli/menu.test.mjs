@@ -15,7 +15,7 @@ import {
 } from './menu.mjs';
 import {PICK_BACK} from './prompts.mjs';
 
-const interact = async ({lines, confirms = []}) => {
+const interact = async ({lines, confirms = [], picks = []}) => {
   let text = '';
   const output = {write: (chunk) => { text += chunk; }};
   const confirmCalls = [];
@@ -34,6 +34,7 @@ const interact = async ({lines, confirms = []}) => {
       confirmCalls.push({prompt, options});
       return confirms.shift();
     },
+    pick: async (_prompt, _items, _options = {}) => picks.shift() ?? {index: 0},
   });
   const result = await runMenu({output, promptRunner});
   return {result, output: text, confirmCalls};
@@ -163,12 +164,12 @@ test('still accepts a file path and defaults presentation choices to off', async
   }
 });
 
-test('render (choice 1) asks the same three presentation questions as still', async () => {
+test('render (choice 1) asks presentation questions and defaults to the project canvas', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-menu-test-'));
   try {
     const {result, confirmCalls} = await interact({
       lines: ['1', root],
-      confirms: [true, false, true],
+      confirms: [true, false, true], picks: [{index: 0}],
     });
     assert.deepEqual(result, [root, '--exif', '--dark']);
     assert.deepEqual(confirmCalls.map((call) => call.options), [
@@ -179,4 +180,9 @@ test('render (choice 1) asks the same three presentation questions as still', as
   } finally {
     fs.rmSync(root, {recursive: true, force: true});
   }
+});
+
+test('menu adds portrait and square presets to render and still argv', () => {
+  assert.deepEqual(buildArgvFromChoices({choice: '1', target: './trip', portrait: true}), ['./trip', '--portrait']);
+  assert.deepEqual(buildArgvFromChoices({choice: '2', target: './photo.jpg', square: true}), ['still', './photo.jpg', '--square']);
 });

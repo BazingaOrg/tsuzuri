@@ -60,12 +60,14 @@ export const normalizeDroppedPath = (input) => {
 };
 
 /** 由菜单选择组装 argv,与命令行同一语义;未知选择返回 null。 */
-export const buildArgvFromChoices = ({choice, target, exif = false, sign = false, dark = false}) => {
+export const buildArgvFromChoices = ({choice, target, exif = false, sign = false, dark = false, portrait = false, square = false}) => {
   if (choice === '1') {
     const argv = [target];
     if (exif) argv.push('--exif');
     if (sign) argv.push('--sign');
     if (dark) argv.push('--dark');
+    if (portrait) argv.push('--portrait');
+    if (square) argv.push('--square');
     return argv;
   }
   if (choice === '2') {
@@ -73,6 +75,8 @@ export const buildArgvFromChoices = ({choice, target, exif = false, sign = false
     if (exif) argv.push('--exif');
     if (sign) argv.push('--sign');
     if (dark) argv.push('--dark');
+    if (portrait) argv.push('--portrait');
+    if (square) argv.push('--square');
     return argv;
   }
   if (choice === '3') return ['lyrics', target];
@@ -133,6 +137,8 @@ export const runMenu = async (
     let exif = false;
     let sign = false;
     let dark = false;
+    let portrait = false;
+    let square = false;
     if (item.key === '1' || item.key === '2') {
       exif = await ask.confirm('显示 EXIF 拍摄参数和相机信息?', {
         defaultValue: false, defaultLabel: '不显示', alternateKey: 'e', alternateLabel: '显示',
@@ -143,9 +149,14 @@ export const runMenu = async (
       dark = await ask.confirm('使用黑色背景,适合暗色展陈?', {
         defaultValue: false, defaultLabel: '不使用', alternateKey: 'd', alternateLabel: '使用',
       });
+      const format = await ask.pick('选择画幅', ['横版(沿用项目设置)', '竖版 1080×1920', '方形 1080×1080'], {
+        allowBack: false, defaultIndex: 0, enterLabel: '横版(沿用项目设置)',
+      });
+      portrait = format.index === 1;
+      square = format.index === 2;
     }
 
-    const argv = buildArgvFromChoices({choice: item.key, target, exif, sign, dark});
+    const argv = buildArgvFromChoices({choice: item.key, target, exif, sign, dark, portrait, square});
     term.detail(`等效命令: ${formatEquivalentCommand(argv)}`);
     if (!['4', '5'].includes(item.key)) {
       term.detail('进阶配置(分辨率/过渡/字幕/背景…)见素材夹 tsuzuri.toml,参考 docs/config.md');

@@ -1,12 +1,12 @@
 export class CliError extends Error {}
 
-const STILL_OPTIONS = '-o <out.png|dir>  --exif  --sign  --dark  --skip-existing  --scale <1-4>(默认 2)';
+const STILL_OPTIONS = '-o <out.png|dir>  --exif  --sign  --dark  --portrait|--square  --skip-existing  --scale <1-4>(默认 2)';
 export const STILL_USAGE = `用法: tsuzuri still <photo|folder> ${STILL_OPTIONS}`;
 
 export const USAGE =
   '用法:\n' +
   '  tsuzuri                                    不带参数进入常驻菜单(仅交互终端)\n' +
-  '  tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--draft] [--trim auto|full|秒数]  渲染相册视频(默认命令)\n' +
+  '  tsuzuri <folder> [-o out.mp4] [--exif] [--sign] [--dark] [--portrait|--square] [--draft] [--trim auto|full|秒数]  渲染相册视频(默认命令)\n' +
   '  tsuzuri still <photo|folder> [选项]         按视频同款视觉导出静态图\n' +
   '  tsuzuri doctor                             检查依赖是否就绪\n' +
   '  tsuzuri lyrics <folder>                    只识别歌词并预览(不渲染)\n' +
@@ -17,7 +17,7 @@ export const USAGE =
   '若文件夹名恰好叫 doctor / lyrics / still / fetch / help,用路径前缀转义,如 tsuzuri ./still';
 
 const parseRenderArgs = (argv) => {
-  const args = {command: 'render', folder: null, output: null, exif: false, sign: false, dark: false, draft: false, trim: null};
+  const args = {command: 'render', folder: null, output: null, exif: false, sign: false, dark: false, portrait: false, square: false, draft: false, trim: null};
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '-o' || argv[i] === '--output') {
       if (i + 1 >= argv.length || argv[i + 1].startsWith('-')) {
@@ -30,6 +30,10 @@ const parseRenderArgs = (argv) => {
       args.sign = true;
     } else if (argv[i] === '--dark') {
       args.dark = true;
+    } else if (argv[i] === '--portrait') {
+      args.portrait = true;
+    } else if (argv[i] === '--square') {
+      args.square = true;
     } else if (argv[i] === '--draft') {
       args.draft = true;
     } else if (argv[i] === '--trim') {
@@ -55,6 +59,7 @@ const parseRenderArgs = (argv) => {
   if (!args.folder) {
     throw new CliError(USAGE);
   }
+  if (args.portrait && args.square) throw new CliError('--portrait 与 --square 不能同时使用');
   return args;
 };
 
@@ -106,6 +111,8 @@ const parseStillArgs = (rest) => {
     exif: false,
     sign: false,
     dark: false,
+    portrait: false,
+    square: false,
     skipExisting: false,
     scale: 2,
   };
@@ -122,6 +129,10 @@ const parseStillArgs = (rest) => {
       args.sign = true;
     } else if (token === '--dark') {
       args.dark = true;
+    } else if (token === '--portrait') {
+      args.portrait = true;
+    } else if (token === '--square') {
+      args.square = true;
     } else if (token === '--skip-existing') {
       args.skipExisting = true;
     } else if (token === '--scale') {
@@ -144,6 +155,7 @@ const parseStillArgs = (rest) => {
   if (!args.target) {
     throw new CliError(STILL_USAGE);
   }
+  if (args.portrait && args.square) throw new CliError('--portrait 与 --square 不能同时使用');
   return args;
 };
 

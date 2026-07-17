@@ -29,6 +29,17 @@ test('dark variants append a final suffix for every EXIF/sign combination', () =
   assert.equal(path.basename(resolveJobs(photo, null, {exif: true, sign: true, dark: true}).jobs[0].outPath), 'IMG-exif-sign-dark.png');
 });
 
+test('portrait and square variants append after presentation suffixes without changing explicit file output', () => {
+  const dir = fixture();
+  const photo = path.join(dir, 'IMG.jpg');
+  fs.writeFileSync(photo, 'x');
+  assert.equal(path.basename(resolveJobs(photo, null, {exif: true, portrait: true}).jobs[0].outPath), 'IMG-exif-portrait.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {dark: true, square: true}).jobs[0].outPath), 'IMG-dark-square.png');
+  assert.equal(path.basename(resolveJobs(photo, null, {exif: true, sign: true, dark: true, portrait: true}).jobs[0].outPath), 'IMG-exif-sign-dark-portrait.png');
+  assert.equal(resolveJobs(photo, path.join(dir, 'custom.png'), {portrait: true}).jobs[0].outPath, path.join(dir, 'custom.png'));
+  assert.equal(path.basename(resolveJobs(photo, `${path.join(dir, 'cards')}/`, {square: true}).jobs[0].outPath), 'IMG-square.png');
+});
+
 test('single-file non-PNG output extension is rejected', () => {
   const dir = fixture();
   const photo = path.join(dir, 'IMG.jpg');
@@ -60,4 +71,13 @@ test('batch rejects source names that collide across variant runs', () => {
   fs.writeFileSync(path.join(dir, 'IMG-dark.jpg'), 'x');
   assert.throws(() => resolveJobs(dir, null), /still 变体输出冲突/);
   assert.throws(() => resolveJobs(dir, null, {dark: true}), /IMG-dark\.png/);
+});
+
+test('batch rejects collisions with every portrait and square presentation combination', () => {
+  for (const suffix of ['-exif-portrait', '-dark-square', '-exif-sign-dark-portrait']) {
+    const dir = fixture();
+    fs.writeFileSync(path.join(dir, 'IMG.jpg'), 'x');
+    fs.writeFileSync(path.join(dir, `IMG${suffix}.jpg`), 'x');
+    assert.throws(() => resolveJobs(dir, null), /still 变体输出冲突/);
+  }
 });

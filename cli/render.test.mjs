@@ -26,6 +26,16 @@ test('dark sets meta.background to black', async () => {
   assert.equal(result.meta.background, '#000000');
 });
 
+test('portrait and square override render props without changing the source timeline', async () => {
+  const source = {...timeline(), meta: {...timeline().meta, width: 3000, height: 2000}};
+  const portrait = await applyRenderVariants(structuredClone(source), {portrait: true}, {resolvePhotoPath: (src) => src});
+  const square = await applyRenderVariants(structuredClone(source), {square: true}, {resolvePhotoPath: (src) => src});
+  assert.deepEqual([portrait.meta.width, portrait.meta.height], [1080, 1920]);
+  assert.deepEqual([square.meta.width, square.meta.height], [1080, 1080]);
+  assert.deepEqual([source.meta.width, source.meta.height], [3000, 2000]);
+  await assert.rejects(() => applyRenderVariants(timeline(), {portrait: true, square: true}), /不能同时使用/);
+});
+
 test('sign sets meta.sign to true', async () => {
   const result = await applyRenderVariants(timeline(), {sign: true}, {resolvePhotoPath: (src) => src});
   assert.equal(result.meta.sign, true);

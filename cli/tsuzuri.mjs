@@ -111,7 +111,7 @@ export const runCommandFromArgv = async (
   }
   if (parsed.command === 'still') return runStill(parsed);
 
-  const {folder: folderArg, output, exif, sign, dark, draft, trim} = parsed;
+  const {folder: folderArg, output, exif, sign, dark, portrait, square, draft, trim} = parsed;
   const folder = path.resolve(folderArg);
   if (!fs.existsSync(folder)) throw new CliError(`找不到路径: ${folder}`);
   if (!fs.statSync(folder).isDirectory()) {
@@ -131,7 +131,7 @@ export const runCommandFromArgv = async (
   if (videos.length > 0) {
     term.warn(`发现视频文件,tsuzuri 目前只处理照片,已忽略: ${videos.join(', ')}`);
   }
-  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}${draft ? '-draft' : ''}`;
+  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}${portrait ? '-portrait' : ''}${square ? '-square' : ''}${draft ? '-draft' : ''}`;
   const project = resolveProjectPaths(folder, output, variantSuffix);
   ensureProjectDirs(project);
   if (copyLegacyMetadata(folder, project.metadataDir)) {
@@ -247,6 +247,8 @@ export const runCommandFromArgv = async (
     ...(exif ? ['--exif'] : []),
     ...(sign ? ['--sign'] : []),
     ...(dark ? ['--dark'] : []),
+    ...(portrait ? ['--portrait'] : []),
+    ...(square ? ['--square'] : []),
     ...(draft ? ['--draft'] : []),
   ]);
   if (renderCode !== 0) return renderCode;

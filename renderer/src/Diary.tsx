@@ -13,7 +13,7 @@ import {Outro} from './Outro';
 import {Photo, hasDisplayableExif} from './Photo';
 import {getSignatureDisplayWidth, useSignatureData} from './Signature';
 import {Subtitle} from './Subtitle';
-import {ANIMATION, INTRO, OUTRO, STILL, SUBTITLE, getPalette} from './theme';
+import {ANIMATION, INTRO, OUTRO, STILL, SUBTITLE, getPalette, getVisualScale} from './theme';
 import {getFadeDuration} from './transition';
 import type {PhotoClip, Timeline} from './types';
 
@@ -25,12 +25,12 @@ const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
  */
 export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
   const frame = useCurrentFrame();
-  const {fps, height, durationInFrames} = useVideoConfig();
+  const {fps, width, height, durationInFrames} = useVideoConfig();
   const t = frame / fps;
   const palette = getPalette(meta.background);
 
   // 视觉规格以 1080p 为基准,非 1080p 输出等比缩放
-  const scale = height / 1080;
+  const scale = getVisualScale(width, height);
   const safeWidth = meta.width * meta.photo_scale;
   const safeHeight = meta.height * meta.photo_scale;
 

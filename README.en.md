@@ -116,6 +116,8 @@ Add `tsuzuri.toml` to the media folder to adjust resolution, frame rate, transit
 
 All generated files live under `output/`: videos at its root and analysis plus preferences in `output/metadata/`. Existing projects copy their old `metadata/` on the first run without deleting it. When the media is unchanged, edit `output/metadata/timeline.json` and rerun: tsuzuri preserves the hand-edited timeline and skips repeated analysis.
 
+`--portrait` renders native 1080×1920 and `--square` renders 1080×1080. Both affect only that render, never the project timeline, and also work with `still`.
+
 Analysis and rendering stay local and require no API key. Whisper selects an Apple Silicon, NVIDIA CUDA, or CPU backend automatically; its model is downloaded only on first use.
 
 - [Configuration reference](docs/config.md): all `tsuzuri.toml` options (Chinese)

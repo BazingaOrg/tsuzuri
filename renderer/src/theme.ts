@@ -1,4 +1,12 @@
-/** 视觉规格以 1080p 为基准,非 1080p 输出按 height/1080 等比缩放。 */
+/** 视觉规格以 1080p 的短边为基准,避免竖版按长边放大。 */
+export const getVisualScale = (width: number, height: number): number => Math.min(width, height) / 1080;
+
+export const getExifLayout = (width: number, height: number) => {
+  const stacked = height > width;
+  return stacked
+    ? {stacked, photoMaxWidth: width * 0.84, photoMaxHeight: height * 0.56, panelWidth: width * 0.84, gap: Math.min(width, height) * 0.06}
+    : {stacked, photoMaxWidth: width * STILL.withExif.photoMaxWidth, photoMaxHeight: height * STILL.withExif.photoMaxHeight, panelWidth: width * STILL.withExif.panelWidth, gap: width * STILL.withExif.gap};
+};
 
 export const CANVAS = {
   width: 1920,

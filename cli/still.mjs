@@ -14,16 +14,11 @@ import {createPercentProgress} from './progress.mjs';
 import {term} from './term.mjs';
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const ALL_VARIANT_SUFFIXES = [
-  '',
-  '-exif',
-  '-sign',
-  '-dark',
-  '-exif-sign',
-  '-exif-dark',
-  '-sign-dark',
-  '-exif-sign-dark',
-];
+const PRESENTATION_SUFFIXES = ['', '-exif', '-sign', '-dark', '-exif-sign', '-exif-dark', '-sign-dark', '-exif-sign-dark'];
+const CANVAS_SUFFIXES = ['', '-portrait', '-square'];
+const ALL_VARIANT_SUFFIXES = PRESENTATION_SUFFIXES.flatMap((presentation) =>
+  CANVAS_SUFFIXES.map((canvas) => `${presentation}${canvas}`),
+);
 
 const DEFAULT_CANVAS = {
   width: 1920,
@@ -103,8 +98,8 @@ const assertNoCrossVariantCollisions = (jobs, variantSuffix) => {
   }
 };
 
-export const resolveJobs = (target, output, {exif = false, sign = false, dark = false} = {}) => {
-  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}`;
+export const resolveJobs = (target, output, {exif = false, sign = false, dark = false, portrait = false, square = false} = {}) => {
+  const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}${portrait ? '-portrait' : ''}${square ? '-square' : ''}`;
   const resolved = path.resolve(target);
   if (!fs.existsSync(resolved)) {
     throw new CliError(`找不到路径: ${resolved}`);
@@ -192,6 +187,8 @@ export const runStill = async (opts) => {
   const {publicDir, canvasFolder, jobs} = resolveJobs(opts.target, opts.output, opts);
   const canvas = loadStillCanvasConfig(canvasFolder);
   if (opts.dark) canvas.background = '#000000';
+  if (opts.portrait) Object.assign(canvas, {width: 1080, height: 1920});
+  if (opts.square) Object.assign(canvas, {width: 1080, height: 1080});
   const {renderStill, selectComposition} = loadRemotionRenderer();
   const progress = createPercentProgress();
   let cleanup = () => {};

@@ -4,7 +4,7 @@ import './fonts';
 import {ExifPanel, type StillExif} from './ExifPanel';
 import {FramedPhoto} from './FramedPhoto';
 import {Signature, useSignatureData} from './Signature';
-import {CANVAS, STILL, getPalette} from './theme';
+import {CANVAS, STILL, getExifLayout, getPalette, getVisualScale} from './theme';
 
 export type {StillExif} from './ExifPanel';
 
@@ -34,7 +34,7 @@ export const Still: React.FC<StillProps> = ({
   sign = false,
   signatureSrc,
 }) => {
-  const scale = height / 1080;
+  const scale = getVisualScale(width, height);
   const palette = getPalette(background);
   const signature = useSignatureData(sign ? signatureSrc : undefined);
   const hasExif = Boolean(exif && (exif.camera || exif.lens || exif.params || exif.datetime));
@@ -60,11 +60,7 @@ export const Still: React.FC<StillProps> = ({
     );
   }
 
-  const layout = STILL.withExif;
-  const photoMaxW = width * layout.photoMaxWidth;
-  const photoMaxH = height * layout.photoMaxHeight;
-  const panelW = width * layout.panelWidth;
-  const gap = width * layout.gap;
+  const layout = getExifLayout(width, height);
 
   return (
     <AbsoluteFill
@@ -77,21 +73,21 @@ export const Still: React.FC<StillProps> = ({
       <div
         style={{
           display: 'flex',
-          flexDirection: 'row',
+          flexDirection: layout.stacked ? 'column' : 'row',
           alignItems: 'center',
-          gap,
+          gap: layout.gap,
           maxWidth: '100%',
           maxHeight: '100%',
         }}
       >
         <FramedPhoto
           src={toStatic(src)}
-          maxWidth={photoMaxW}
-          maxHeight={photoMaxH}
+          maxWidth={layout.photoMaxWidth}
+          maxHeight={layout.photoMaxHeight}
           renderScale={scale}
           palette={palette}
         />
-        <ExifPanel exif={exif!} scale={scale} width={panelW} sign={sign} signature={signature} palette={palette} />
+        <ExifPanel exif={exif!} scale={scale} width={layout.panelWidth} sign={sign} signature={signature} palette={palette} />
       </div>
     </AbsoluteFill>
   );

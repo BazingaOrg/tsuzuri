@@ -5,7 +5,7 @@ import {CliError, parseArgs} from './options.mjs';
 
 test('bare folder argument routes to the render command', () => {
   assert.deepEqual(parseArgs(['album']), {
-    command: 'render', folder: 'album', output: null, exif: false, sign: false, dark: false, draft: false, trim: null,
+    command: 'render', folder: 'album', output: null, exif: false, sign: false, dark: false, portrait: false, square: false, draft: false, trim: null,
   });
   assert.deepEqual(parseArgs(['album', '-o', 'out.mp4']), {
     command: 'render',
@@ -14,6 +14,8 @@ test('bare folder argument routes to the render command', () => {
     exif: false,
     sign: false,
     dark: false,
+    portrait: false,
+    square: false,
     draft: false,
     trim: null,
   });
@@ -27,6 +29,8 @@ test('render command accepts --exif, --sign, and --dark flags', () => {
     exif: true,
     sign: true,
     dark: true,
+    portrait: false,
+    square: false,
     draft: false,
     trim: null,
   });
@@ -37,6 +41,8 @@ test('render command accepts --exif, --sign, and --dark flags', () => {
     exif: true,
     sign: false,
     dark: false,
+    portrait: false,
+    square: false,
     draft: false,
     trim: null,
   });
@@ -51,6 +57,15 @@ test('render command rejects an unknown flag before or after the folder', () => 
 test('render command accepts --draft before or after the folder', () => {
   assert.equal(parseArgs(['album', '--draft']).draft, true);
   assert.equal(parseArgs(['--draft', 'album']).draft, true);
+});
+
+test('render and still accept one portrait or square preset, but not both', () => {
+  assert.equal(parseArgs(['album', '--portrait']).portrait, true);
+  assert.equal(parseArgs(['album', '--square']).square, true);
+  assert.equal(parseArgs(['still', 'photo.jpg', '--portrait']).portrait, true);
+  for (const args of [['album', '--portrait', '--square'], ['still', 'photo.jpg', '--portrait', '--square']]) {
+    assert.throws(() => parseArgs(args), /不能同时使用/);
+  }
 });
 
 test('render command accepts one-time trim overrides', () => {
@@ -106,7 +121,7 @@ test('a leading `help` token (or -h / --help) routes to the help command', () =>
 });
 
 test('a path-qualified folder named doctor/lyrics/still/fetch/help is the escape hatch, not a verb', () => {
-  const flags = {exif: false, sign: false, dark: false, draft: false, trim: null};
+  const flags = {exif: false, sign: false, dark: false, portrait: false, square: false, draft: false, trim: null};
   assert.deepEqual(parseArgs(['./lyrics']), {command: 'render', folder: './lyrics', output: null, ...flags});
   assert.deepEqual(parseArgs(['./fetch']), {command: 'render', folder: './fetch', output: null, ...flags});
   assert.deepEqual(parseArgs(['./doctor']), {command: 'render', folder: './doctor', output: null, ...flags});
@@ -128,6 +143,8 @@ test('a leading `still` token routes to the still command with defaults', () => 
     exif: false,
     sign: false,
     dark: false,
+    portrait: false,
+    square: false,
     skipExisting: false,
     scale: 2,
   });
@@ -141,6 +158,8 @@ test('still accepts -o, --exif, and --scale', () => {
     exif: true,
     sign: false,
     dark: false,
+    portrait: false,
+    square: false,
     skipExisting: false,
     scale: 3,
   });

@@ -3,7 +3,7 @@ import {AbsoluteFill, interpolate, staticFile, useCurrentFrame, useVideoConfig} 
 import {ExifPanel} from './ExifPanel';
 import {FramedPhoto} from './FramedPhoto';
 import {Signature, getSignatureDisplayWidth, type SignatureData} from './Signature';
-import {STILL, type Palette} from './theme';
+import {STILL, getExifLayout, getVisualScale, type Palette} from './theme';
 import {getFadeDuration} from './transition';
 import type {PhotoClip} from './types';
 
@@ -30,7 +30,7 @@ export const Photo: React.FC<{
   signature?: SignatureData | null;
 }> = ({clip, backgroundColor, safeWidth, safeHeight, palette, canvasWidth, canvasHeight, sign = false, signature}) => {
   const frame = useCurrentFrame();
-  const {fps, height} = useVideoConfig();
+  const {fps, width, height} = useVideoConfig();
   const t = frame / fps;
 
   const dIn = getFadeDuration(clip.transition);
@@ -40,17 +40,13 @@ export const Photo: React.FC<{
       : t >= clip.start
         ? 1
         : 0;
-  const renderScale = height / 1080;
+  const renderScale = getVisualScale(width, height);
 
   const hasExif = hasDisplayableExif(clip.exif);
 
   // 带 EXIF 展签:照片左 + 展签右,整体居中,与 Still withExif 分支同款布局
   if (hasExif) {
-    const layout = STILL.withExif;
-    const photoMaxW = canvasWidth * layout.photoMaxWidth;
-    const photoMaxH = canvasHeight * layout.photoMaxHeight;
-    const panelW = canvasWidth * layout.panelWidth;
-    const gap = canvasWidth * layout.gap;
+    const layout = getExifLayout(canvasWidth, canvasHeight);
     return (
       <AbsoluteFill
         style={{
@@ -63,21 +59,21 @@ export const Photo: React.FC<{
         <div
           style={{
             display: 'flex',
-            flexDirection: 'row',
+            flexDirection: layout.stacked ? 'column' : 'row',
             alignItems: 'center',
-            gap,
+            gap: layout.gap,
             maxWidth: '100%',
             maxHeight: '100%',
           }}
         >
           <FramedPhoto
             src={toStatic(clip.src)}
-            maxWidth={photoMaxW}
-            maxHeight={photoMaxH}
+            maxWidth={layout.photoMaxWidth}
+            maxHeight={layout.photoMaxHeight}
             renderScale={renderScale}
             palette={palette}
           />
-          <ExifPanel exif={clip.exif!} scale={renderScale} width={panelW} sign={sign} signature={signature ?? null} palette={palette} />
+          <ExifPanel exif={clip.exif!} scale={renderScale} width={layout.panelWidth} sign={sign} signature={signature ?? null} palette={palette} />
         </div>
       </AbsoluteFill>
     );

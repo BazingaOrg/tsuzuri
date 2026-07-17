@@ -42,14 +42,17 @@ export const resolveRenderSettings = (
  * 渲染时覆盖 inputProps(timeline.json 本身绝不改写):
  * dark → 黑底;sign → 落款;exif → 按 src 去重逐张提取展签,信息不足置 null。
  * @param {object} timeline
- * @param {{exif?: boolean, sign?: boolean, dark?: boolean}} flags
+ * @param {{exif?: boolean, sign?: boolean, dark?: boolean, portrait?: boolean, square?: boolean}} flags
  * @param {{resolvePhotoPath: (src: string) => string, extractExif?: typeof extractFormattedExif, onExifShortage?: (count: number) => void}} deps
  */
 export const applyRenderVariants = async (
   timeline,
-  {exif = false, sign = false, dark = false} = {},
+  {exif = false, sign = false, dark = false, portrait = false, square = false} = {},
   {resolvePhotoPath, extractExif = extractFormattedExif, onExifShortage} = {},
 ) => {
+  if (portrait && square) throw new Error('--portrait 与 --square 不能同时使用');
+  if (portrait) timeline.meta = {...timeline.meta, width: 1080, height: 1920};
+  if (square) timeline.meta = {...timeline.meta, width: 1080, height: 1080};
   if (dark) {
     timeline.meta = {...timeline.meta, background: '#000000'};
   }
@@ -76,7 +79,7 @@ const main = async () => {
   const [timelineArg, outputArg, publicDirArg, ...flagArgs] = process.argv.slice(2);
   if (!timelineArg || !outputArg || !publicDirArg) {
     throw new Error(
-      '用法: render.mjs <timeline.json> <output.mp4> <public-dir> [--exif] [--sign] [--dark] [--draft]\n' +
+      '用法: render.mjs <timeline.json> <output.mp4> <public-dir> [--exif] [--sign] [--dark] [--portrait|--square] [--draft]\n' +
         '此为内部入口,日常请用 tsuzuri <folder>',
     );
   }
@@ -84,6 +87,8 @@ const main = async () => {
     exif: flagArgs.includes('--exif'),
     sign: flagArgs.includes('--sign'),
     dark: flagArgs.includes('--dark'),
+    portrait: flagArgs.includes('--portrait'),
+    square: flagArgs.includes('--square'),
     draft: flagArgs.includes('--draft'),
   };
 

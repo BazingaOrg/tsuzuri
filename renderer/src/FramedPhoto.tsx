@@ -9,7 +9,7 @@ export const FramedPhoto: React.FC<{
   src: string;
   maxWidth: number;
   maxHeight: number;
-  /** height/1080,阴影与描边等比缩放 */
+  /** 短边/1080,阴影与描边等比缩放 */
   renderScale: number;
   palette: Palette;
 }> = ({src, maxWidth, maxHeight, renderScale, palette}) => {

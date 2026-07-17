@@ -39,6 +39,8 @@ tsuzuri ./osaka-trip --trim full
 tsuzuri ./osaka-trip --trim 120
 ```
 
+`--portrait`（1080×1920）和 `--square`（1080×1080）是一次性渲染预设，互斥，优先于 TOML 的 `width`/`height`，但不写回 `timeline.json`。不带预设时仍完全沿用 TOML 画布设置；`still` 也支持这两个参数。
+
 ## 字幕与识别
 
 | 键 | 默认值 | 说明 |
