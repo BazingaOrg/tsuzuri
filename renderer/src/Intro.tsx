@@ -14,8 +14,9 @@ export const introDuration =
  * 实线段沿路径滑入,视觉上如笔沿字迹书写;CSS animation 在 Remotion
  * 不可用,由 useCurrentFrame 逐帧驱动同一原理。
  *
- * 多 path 自定义签名时各笔画并行书写(各自 dasharray = 自身长度),
- * 总时长仍为 introDuration,plan 侧 INTRO_DURATION 无需改动。
+ * 多 path 自定义签名按 path 顺序依次书写(约定:path 顺序即笔顺),
+ * 各笔画时间窗按自身长度占比分配;总时长仍为 introDuration,
+ * plan 侧 INTRO_DURATION 无需改动,单 path(含内置签名)行为不变。
  */
 export const Intro: React.FC<{
   backgroundColor: string;
@@ -48,11 +49,18 @@ export const Intro: React.FC<{
   const height = INTRO.height * scale;
   const width = height * (signature.viewBox.width / signature.viewBox.height);
 
-  // 书写进度 1→0(dashoffset 系数),各 path 乘以自身 length
-  const drawProgress = interpolate(t, [0, INTRO.drawDuration], [1, 0], {
+  // 整体书写进度 0→1;各 path 按长度占比在总进度上占据连续时间窗,依次书写
+  const drawProgress = interpolate(t, [0, INTRO.drawDuration], [0, 1], {
     ...clamp,
     easing: Easing.bezier(0.35, 0, 0.55, 1),
   });
+  const totalLength = signature.paths.reduce((sum, p) => sum + p.length, 0);
+  const prefixLengths: number[] = [];
+  let prefix = 0;
+  for (const p of signature.paths) {
+    prefixLengths.push(prefix);
+    prefix += p.length;
+  }
 
   return (
     <AbsoluteFill
@@ -66,13 +74,19 @@ export const Intro: React.FC<{
       <Signature
         data={signature}
         style={{width, height, color: palette.text, opacity: INTRO.opacity, display: 'block'}}
-        pathProps={(path) => ({
-          fillOpacity,
-          stroke: 'currentColor',
-          strokeWidth: INTRO.strokeWidth,
-          strokeDasharray: path.length,
-          strokeDashoffset: path.length * drawProgress,
-        })}
+        pathProps={(path, index) => {
+          const local = Math.min(
+            1,
+            Math.max(0, (drawProgress * totalLength - prefixLengths[index]) / path.length),
+          );
+          return {
+            fillOpacity,
+            stroke: 'currentColor',
+            strokeWidth: INTRO.strokeWidth,
+            strokeDasharray: path.length,
+            strokeDashoffset: path.length * (1 - local),
+          };
+        }}
       />
     </AbsoluteFill>
   );

@@ -64,6 +64,17 @@ completion or failure, and `q` exits. Commands with arguments remain one-shot. T
 
 `still` supports `-o`, `--exif`, `--sign`, `--dark`, `--skip-existing`, and `--scale <1-4>`; video rendering supports the same `--exif`, `--sign`, and `--dark` flags, matching still's behavior (applied at render time, never written to timeline.json), and appends an `-exif`/`-sign`/`-dark` suffix to the default output filename when `-o` is omitted. Run `node cli/tsuzuri.mjs help` for the current full syntax.
 
+The signature SVG used by `--sign` can be designed visually with
+[animated-signature](https://github.com/BazingaOrg/animated-signature): type a
+name, pick a handwriting font, then export a **static SVG (tight bounds, fixed
+color or currentColor)**, drop it into the material folder, and set
+`signature = "signature.svg"` in `tsuzuri.toml`. The animated export is not
+needed — tsuzuri reads only the path data and drives the intro handwriting
+animation itself; path order is treated as stroke order. See
+[docs/config.md](docs/config.md) for the full constraints.
+
+[![animated-signature studio preview](https://raw.githubusercontent.com/BazingaOrg/animated-signature/main/docs/assets/preview.jpg)](https://github.com/BazingaOrg/animated-signature)
+
 tsuzuri automatically:
 
 - Orders photos by EXIF time when every photo has it, otherwise by filename

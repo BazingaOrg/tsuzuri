@@ -67,6 +67,14 @@ node cli/tsuzuri.mjs help
 视频默认使用可用逻辑 CPU 数减一并发渲染；内存紧张时可用 `TSUZURI_CONCURRENCY=4`
 或 `TSUZURI_CONCURRENCY=50%` 临时降低并发，不写入项目配置。
 
+`--sign` 的签名 SVG 可以用 [animated-signature](https://github.com/BazingaOrg/animated-signature)
+在浏览器里可视化制作：输入名字、挑选手写字体后，导出**静态 SVG（tight bounds，固定色
+或 currentColor）**，放进素材夹并在 `tsuzuri.toml` 里 `signature = "signature.svg"`
+即可。不必导出动画版——tsuzuri 只读取路径数据，片头的手写描画由渲染器自己驱动，
+路径顺序即书写笔顺。详细约束见 [docs/config.md](docs/config.md)。
+
+[![animated-signature 工作室预览](https://raw.githubusercontent.com/BazingaOrg/animated-signature/main/docs/assets/preview.jpg)](https://github.com/BazingaOrg/animated-signature)
+
 tsuzuri 会自动处理：
 
 - 照片均有 EXIF 时间时按拍摄时间排列，否则按文件名排列

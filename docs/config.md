@@ -71,8 +71,12 @@ tsuzuri ./osaka-trip --trim 120
 
 - 必须包含 `viewBox`，且只使用转换为轮廓的 `<path>`
 - 使用单色填充；渲染时统一转换为 `currentColor`
-- 多个 path 会并行书写
+- path 顺序即书写笔顺：片头按 path 顺序依次描画，时间窗按各笔画长度占比分配
 - 文件缺失或解析失败会终止运行
+
+推荐用 [animated-signature](https://github.com/BazingaOrg/animated-signature)
+在浏览器里制作：导出静态 SVG（tight bounds，固定色或 currentColor）即满足上述
+全部约束；无需导出动画版，片头书写动画由渲染器驱动。
 
 ## 示例
 
