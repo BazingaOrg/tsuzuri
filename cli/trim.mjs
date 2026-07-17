@@ -26,7 +26,7 @@ export const maybePersistTrimChoice = async (
     return null;
   }
 
-  const photos = timeline.photos?.length ?? 0;
+  const photos = timeline.photos?.filter((clip) => (clip.kind === undefined || clip.kind === 'photo') && typeof clip.src === 'string').length ?? 0;
   const average = photos > 0 ? trim.trimmed_duration / photos : 0;
   const picked = await promptRunner((ask) => ask.pick(
     `歌长图少,已在 ${trim.trimmed_duration.toFixed(1)} 秒重拍处截断(平均每张 ${average.toFixed(1)} 秒)。如何处理?`,

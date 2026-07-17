@@ -11,13 +11,19 @@ import './fonts';
 import {Intro, introDuration} from './Intro';
 import {Outro} from './Outro';
 import {Photo, hasDisplayableExif} from './Photo';
+import {ChapterCard} from './ChapterCard';
 import {getSignatureDisplayWidth, useSignatureData} from './Signature';
 import {Subtitle} from './Subtitle';
 import {ANIMATION, INTRO, OUTRO, STILL, SUBTITLE, getPalette, getVisualScale} from './theme';
 import {getFadeDuration} from './transition';
-import type {PhotoClip, Timeline} from './types';
+import type {PhotoClip, Timeline, VisualClip} from './types';
 
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
+
+const isPhotoClip = (clip: VisualClip | undefined): clip is PhotoClip =>
+  clip !== undefined && clip.kind !== 'chapter' && (!('kind' in clip) || clip.kind === undefined || clip.kind === 'photo') && 'src' in clip && typeof clip.src === 'string';
+
+const isChapterClip = (clip: VisualClip | undefined): clip is Extract<VisualClip, {kind: 'chapter'}> => clip?.kind === 'chapter';
 
 /**
  * 主 Composition:消费 timeline.json(即组件 props)。
@@ -38,11 +44,16 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
   const bandCenterFromBottom = (meta.height * (1 - meta.photo_scale)) / 4;
 
   // 只挂载当前可见的照片(含淡化前后沿)
+  const visualClips = photos.filter((clip) => isPhotoClip(clip) || isChapterClip(clip));
+  const photoClips = visualClips.filter(isPhotoClip);
+  const chapterClips = visualClips.filter(isChapterClip);
   const visiblePhotos: Array<{clip: PhotoClip; index: number}> = [];
-  for (let index = 0; index < photos.length; index += 1) {
-    const clip = photos[index];
+  for (let index = 0; index < visualClips.length; index += 1) {
+    const clip = visualClips[index];
+    if (!isPhotoClip(clip)) continue;
     const dIn = getFadeDuration(clip.transition);
-    const dOut = getFadeDuration(photos[index + 1]?.transition);
+    const nextClip = visualClips[index + 1];
+    const dOut = isPhotoClip(nextClip) ? getFadeDuration(nextClip.transition) : 0;
     if (
       t >= clip.start - dIn / 2 - 1 / fps &&
       t <= clip.end + dOut / 2 + 1 / fps
@@ -68,8 +79,8 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
   const introEnabled = meta.branding?.intro !== false;
   const showIntro =
     introEnabled &&
-    photos.length > 0 &&
-    photos[0].end >= introDuration + INTRO.minPhotoVisible &&
+    photoClips.length > 0 &&
+    photoClips[0].end >= introDuration + INTRO.minPhotoVisible &&
     durationInFrames / fps >= introDuration + ANIMATION.whiteFadeDuration + INTRO.minPhotoVisible;
 
   const outroText = meta.branding?.outro_text ?? OUTRO.text;
@@ -128,6 +139,7 @@ export const Diary: React.FC<Timeline> = ({meta, photos, subtitles}) => {
           palette={palette}
         />
       ))}
+      {chapterClips.filter((clip) => t >= clip.start && t <= clip.end).map((clip) => <ChapterCard key={`${clip.start}-${clip.text}`} clip={clip} background={meta.background} palette={palette} />)}
       {whiteFade > 0 ? (
         <AbsoluteFill style={{backgroundColor: meta.background, opacity: whiteFade}} />
       ) : null}

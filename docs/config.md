@@ -41,6 +41,8 @@ tsuzuri ./osaka-trip --trim 120
 
 `--portrait`（1080×1920）和 `--square`（1080×1080）是一次性渲染预设，互斥，优先于 TOML 的 `width`/`height`，但不写回 `timeline.json`。不带预设时仍完全沿用 TOML 画布设置；`still` 也支持这两个参数。
 
+`chapters = false` 可关闭跨天照片自动插入的日期章节卡；默认开启，且仅在所有照片都有可解析 EXIF 拍摄日期时生效。
+
 ## 字幕与识别
 
 | 键 | 默认值 | 说明 |

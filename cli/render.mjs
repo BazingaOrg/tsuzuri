@@ -61,11 +61,12 @@ export const applyRenderVariants = async (
   }
   if (exif) {
     const exifBySrc = new Map();
-    for (const photo of timeline.photos ?? []) {
+    for (const photo of (timeline.photos ?? []).filter((clip) => (clip.kind === undefined || clip.kind === 'photo') && typeof clip.src === 'string')) {
       if (exifBySrc.has(photo.src)) continue;
       exifBySrc.set(photo.src, await extractExif(resolvePhotoPath(photo.src)));
     }
     timeline.photos = (timeline.photos ?? []).map((photo) => {
+      if ((photo.kind !== undefined && photo.kind !== 'photo') || typeof photo.src !== 'string') return photo;
       const formatted = exifBySrc.get(photo.src) ?? null;
       return {...photo, exif: formatted};
     });

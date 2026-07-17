@@ -226,7 +226,7 @@ export const runCommandFromArgv = async (
     term.success('已记住你的选择');
     tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   }
-  const n = tl.photos.length;
+  const n = tl.photos.filter((clip) => (clip.kind === undefined || clip.kind === 'photo') && typeof clip.src === 'string').length;
   term.info('渲染计划');
   term.detail(
     `照片: ${n} 张,平均每张 ${(tl.meta.duration / n).toFixed(1)}s\n` +

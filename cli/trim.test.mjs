@@ -9,8 +9,28 @@ import {maybePersistTrimChoice} from './trim.mjs';
 const makeFolder = () => fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-trim-'));
 const timeline = {
   meta: {trim: {mode: 'auto', applied: true, full_duration: 60, trimmed_duration: 24}},
-  photos: [{}, {}, {}],
+  photos: [{src: 'a.jpg'}, {src: 'b.jpg'}, {src: 'c.jpg'}],
 };
+
+test('trim prompt counts only legacy and explicit real photos', async () => {
+  const folder = makeFolder();
+  let question = '';
+  try {
+    await maybePersistTrimChoice({
+      folder,
+      timeline: {...timeline, photos: [
+        {src: 'legacy.jpg'}, {kind: 'photo', src: 'photo.jpg'},
+        {kind: 'chapter', text: '第2天', start: 1, end: 3, src: 'chapter.jpg'},
+        {kind: 'future', src: 'future.jpg'}, {kind: 'photo'},
+      ]},
+      interactive: true,
+      promptRunner: async (run) => run({pick: async (text) => { question = text; return {index: 0}; }}),
+    });
+    assert.match(question, /平均每张 12\.0 秒/);
+  } finally {
+    fs.rmSync(folder, {recursive: true, force: true});
+  }
+});
 
 test('interactive first auto trim persists the accepted default', async () => {
   const folder = makeFolder();

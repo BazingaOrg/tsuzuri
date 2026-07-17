@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
 import {applyRenderVariants, detectParallelism, resolveRenderSettings} from './render.mjs';
@@ -71,6 +72,40 @@ test('exif shortage is reported once with the count of unique photos missing EXI
     },
   );
   assert.equal(shortageCount, 2);
+});
+
+test('legacy and explicit photo clips receive EXIF, while chapter and unknown clips are untouched', async () => {
+  const tl = {
+    ...timeline(),
+    photos: [
+      {src: 'legacy.jpg', start: 0},
+      {kind: 'photo', src: 'photo.jpg', start: 1},
+      {kind: 'chapter', text: '7月14日 · 第2天 ♪', start: 2, end: 4, src: 'not-a-photo.jpg'},
+      {kind: 'future', src: 'unknown.jpg', start: 4, end: 5},
+    ],
+  };
+  const calls = [];
+  let shortageCount = null;
+  const result = await applyRenderVariants(tl, {exif: true}, {
+    resolvePhotoPath: (src) => src,
+    extractExif: async (src) => { calls.push(src); return {camera: src}; },
+    onExifShortage: (count) => { shortageCount = count; },
+  });
+  assert.deepEqual(calls, ['legacy.jpg', 'photo.jpg']);
+  assert.deepEqual(result.photos[0].exif, {camera: 'legacy.jpg'});
+  assert.deepEqual(result.photos[1].exif, {camera: 'photo.jpg'});
+  assert.equal(result.photos[2].exif, undefined);
+  assert.equal(result.photos[3].exif, undefined);
+  assert.equal(shortageCount, null);
+});
+
+test('Diary clears a photo fade-out before a chapter and layers chapters over subtitles', () => {
+  const diary = fs.readFileSync(new URL('../renderer/src/Diary.tsx', import.meta.url), 'utf8');
+  assert.match(diary, /const visualClips = photos\.filter\(\(clip\) => isPhotoClip\(clip\) \|\| isChapterClip\(clip\)\);/);
+  assert.match(diary, /const isPhotoClip = \(clip: VisualClip \| undefined\)/);
+  assert.match(diary, /const dOut = isPhotoClip\(nextClip\) \? getFadeDuration\(nextClip\.transition\) : 0;/);
+  assert.match(diary, /typeof clip\.src === 'string'/);
+  assert.ok(diary.indexOf('<Subtitle') < diary.indexOf('<ChapterCard'));
 });
 
 test('normal and draft render settings preserve fps while changing transfer and encode quality', () => {

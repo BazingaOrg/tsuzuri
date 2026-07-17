@@ -1,6 +1,6 @@
 # timeline.json Schema v1
 
-`output/metadata/timeline.json` 是 Python analyzer/planner 与 Remotion renderer 之间的阶段契约。`photos` 和 `subtitles` 是相互独立的时间线。
+`output/metadata/timeline.json` 是 Python analyzer/planner 与 Remotion renderer 之间的阶段契约。`photos` 和 `subtitles` 是相互独立的时间线；`photos` 也可包含日期章节卡。
 
 字段变更时应同步更新本文档、planner 输出和 renderer 类型。
 
@@ -33,12 +33,15 @@
 | `trim.trimmed_duration` | float | 本次规划采用的时长（秒）；未裁剪时等于原时长 |
 | `input_hash` | string? | CLI 计算的素材与配置摘要，用于判断输入是否变化 |
 | `plan_checksum` | string? | planner 计算的文档摘要，用于识别手动编辑并决定是否刷新时间线 |
+| `chapters` | object | 自动日期章节状态：`enabled`、`day_count`、`card_count` |
 | `branding` | object? | 用户显式配置的片头与片尾设置 |
 | `branding.outro_text` | string? | 片尾文案；空串隐藏，缺省使用渲染器默认值 |
 | `branding.signature` | string? | 签名 SVG 相对素材根目录的路径 |
 | `branding.intro` | bool? | 片头开关，缺省为 `true` |
 
 ## photos[]
+
+`photos` 是 `VisualClip[]`：照片 clip 为 `kind: "photo"`（旧 timeline 省略 `kind` 也按照片兼容），章节 clip 为 `kind: "chapter"`，含 `text`、`start`、`end`。渲染器忽略未来未知 `kind`；旧 renderer 不保证能渲染包含章节卡的新 timeline。
 
 按 `start` 升序；首张 `start = 0`，末张 `end = meta.duration`，相邻照片的 `end` 与 `start` 相等。
 

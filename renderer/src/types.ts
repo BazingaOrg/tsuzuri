@@ -15,6 +15,7 @@ export type MotionSpec = {
 };
 
 export type PhotoClip = {
+  kind?: 'photo';
   src: string;
   start: number; // seconds; switch point = crossfade midpoint
   end: number;
@@ -24,6 +25,9 @@ export type PhotoClip = {
   /** 渲染时覆盖注入的 EXIF 展签数据;无内容或未开启 --exif 时为空 */
   exif?: StillExif | null;
 };
+
+export type ChapterClip = {kind: 'chapter'; text: string; start: number; end: number};
+export type VisualClip = PhotoClip | ChapterClip | {kind: string; start: number; end: number};
 
 export type SubtitleLine = {
   text: string;
@@ -65,11 +69,12 @@ export type TimelineMeta = {
   branding?: Branding;
   /** 渲染时覆盖注入的照片签名落款开关;缺省 false */
   sign?: boolean;
+  chapters?: {enabled: boolean; day_count: number; card_count: number};
 };
 
 export type Timeline = {
   meta: TimelineMeta;
-  photos: PhotoClip[];
+  photos: VisualClip[];
   subtitles: SubtitleLine[];
   beats?: {
     bpm: number;

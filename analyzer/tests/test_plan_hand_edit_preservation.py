@@ -29,6 +29,14 @@ def make_photos(folder: Path, n: int) -> None:
         Image.new("RGB", (4, 4), color=(i % 255, 0, 0)).save(folder / f"{i:03d}.jpg")
 
 
+def make_dated_photos(folder: Path) -> None:
+    for i, day in enumerate(["2026:07:13", "2026:07:14"]):
+        image = Image.new("RGB", (4, 4), color=(i, 0, 0))
+        exif = Image.Exif()
+        exif[plan.DATETIME_ORIGINAL] = f"{day} 12:00:00"
+        image.save(folder / f"{i:03d}.jpg", exif=exif)
+
+
 def _frange(start: float, stop: float, step: float):
     t = start
     while t < stop:
@@ -37,8 +45,8 @@ def _frange(start: float, stop: float, step: float):
 
 
 def write_beats(folder: Path, duration: float, *, bpm: float = 120.0) -> None:
-    metadata = folder / "metadata"
-    metadata.mkdir(exist_ok=True)
+    metadata = folder / "output" / "metadata"
+    metadata.mkdir(parents=True, exist_ok=True)
     data = {
         "version": 1,
         "audio": "song.mp3",
@@ -56,7 +64,7 @@ def run_plan(folder: Path, *, input_hash: str = DEFAULT_HASH) -> int:
 
 
 def timeline_path(folder: Path) -> Path:
-    return folder / "metadata" / "timeline.json"
+    return folder / "output" / "metadata" / "timeline.json"
 
 
 def read_timeline(folder: Path) -> dict:
@@ -74,6 +82,12 @@ class TestFreshGeneration:
         assert run_plan(tmp_path) == 0
         tl = read_timeline(tmp_path)
         assert tl["meta"]["plan_checksum"] == _content_checksum(tl)
+
+    def test_planner_detail_counts_only_real_photos(self, tmp_path: Path, capsys):
+        make_dated_photos(tmp_path)
+        write_beats(tmp_path, 30.0)
+        assert run_plan(tmp_path) == 0
+        assert "plan: 2 photos / 16.0s (平均每张 8.0s" in capsys.readouterr().out
 
 
 class TestUntouchedAutoUpgrade:
@@ -117,6 +131,33 @@ class TestHandEditPreservation:
         assert run_plan(tmp_path) == 0
         assert read_timeline(tmp_path)["meta"]["photo_scale"] == 0.42
 
+    def test_edited_chapter_text_is_preserved(self, tmp_path: Path):
+        make_dated_photos(tmp_path)
+        write_beats(tmp_path, 30.0)
+        assert run_plan(tmp_path) == 0
+
+        tl = read_timeline(tmp_path)
+        chapter = next(clip for clip in tl["photos"] if clip.get("kind") == "chapter")
+        chapter["text"] = "手改章节文案"
+        write_timeline(tmp_path, tl)
+
+        assert run_plan(tmp_path) == 0
+        assert next(clip for clip in read_timeline(tmp_path)["photos"] if clip.get("kind") == "chapter")["text"] == "手改章节文案"
+
+    def test_edited_chapter_timing_is_preserved(self, tmp_path: Path):
+        make_dated_photos(tmp_path)
+        write_beats(tmp_path, 30.0)
+        assert run_plan(tmp_path) == 0
+
+        tl = read_timeline(tmp_path)
+        chapter = next(clip for clip in tl["photos"] if clip.get("kind") == "chapter")
+        chapter["start"], chapter["end"] = 11.0, 13.0
+        write_timeline(tmp_path, tl)
+
+        assert run_plan(tmp_path) == 0
+        edited = next(clip for clip in read_timeline(tmp_path)["photos"] if clip.get("kind") == "chapter")
+        assert (edited["start"], edited["end"]) == (11.0, 13.0)
+
 
 class TestBootstrap:
     def test_pre_feature_file_without_plan_checksum_is_preserved(self, tmp_path: Path):
@@ -156,25 +197,26 @@ class TestMaterialChanged:
 
 class TestMissingBeatsFallback:
     def test_hand_edited_file_preserved_even_without_beats_json(self, tmp_path: Path):
-        make_photos(tmp_path, 3)
+        make_dated_photos(tmp_path)
         write_beats(tmp_path, 30.0)
         assert run_plan(tmp_path) == 0
 
         tl = read_timeline(tmp_path)
-        tl["photos"][0]["end"] = 777.0
+        chapter = next(clip for clip in tl["photos"] if clip.get("kind") == "chapter")
+        chapter["text"] = "缺拍点时保留的手改章节"
         write_timeline(tmp_path, tl)
-        (tmp_path / "metadata" / "beats.json").unlink()  # 模拟被手动删除
+        (tmp_path / "output" / "metadata" / "beats.json").unlink()  # 模拟被手动删除
 
         assert run_plan(tmp_path) == 0  # 不应报错(手改保留分支不依赖 beats.json)
-        assert read_timeline(tmp_path)["photos"][0]["end"] == 777.0
+        assert next(clip for clip in read_timeline(tmp_path)["photos"] if clip.get("kind") == "chapter")["text"] == "缺拍点时保留的手改章节"
 
     def test_untouched_file_falls_back_to_preserve_when_beats_missing(self, tmp_path: Path):
-        make_photos(tmp_path, 3)
+        make_dated_photos(tmp_path)
         write_beats(tmp_path, 30.0)
         assert run_plan(tmp_path) == 0
         first = read_timeline(tmp_path)
 
-        (tmp_path / "metadata" / "beats.json").unlink()
+        (tmp_path / "output" / "metadata" / "beats.json").unlink()
 
         # 本想刷新(文件未被手动改过)但 beats.json 缺失 → 退回保留现状,而非报错
         assert run_plan(tmp_path) == 0

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import hashlib
 import json
 import math
@@ -40,6 +41,7 @@ DEFAULTS = {
     "trim_target_avg": 8.0,      # 裁剪目标:平均每张展示秒数
     "trim": "auto",             # auto(自动裁剪)| full(整首)| 正数秒数
     "subtitles": True,           # 字幕轨总开关
+    "chapters": True,            # EXIF 跨天时插入日期章节卡
     # 片头/片尾运行默认仅用于规划;展示默认值的单一来源在 renderer/theme.ts
     "outro_text": "",
     "signature": "",             # 空串 = 内置签名;非空为素材夹内 .svg 相对路径
@@ -177,6 +179,9 @@ def load_config(folder: Path) -> dict:
     _validate_background(cfg)
     _validate_branding(cfg, folder)
     _validate_trim(cfg)
+    if not isinstance(cfg["chapters"], bool):
+        term.error(f"tsuzuri.toml: chapters 必须是 true 或 false,收到 {cfg['chapters']!r}")
+        raise SystemExit(1)
     return cfg
 
 
@@ -217,6 +222,57 @@ def ordered_photos(folder: Path) -> list[Path]:
         return sorted(photos, key=lambda p: (stamps[p], p.name))
     term.detail(f"photo order: 文件名排序({len(photos)} 张,EXIF 时间不完整)")
     return photos
+
+
+CHAPTER_SYMBOLS = [":)", "♪", "✦", "˖°"]
+
+
+def _photo_days(photos: list[Path]) -> list[str] | None:
+    """Return sortable YYYY-MM-DD days only when every DateTimeOriginal is usable."""
+    days = []
+    for photo in photos:
+        stamp = exif_datetime(photo)
+        if not stamp:
+            return None
+        try:
+            days.append(datetime.strptime(stamp, "%Y:%m:%d %H:%M:%S").date().isoformat())
+        except (ValueError, TypeError):
+            return None
+    return days
+
+
+def _insert_chapters(clips: list[dict], photos: list[Path], beats: list[float], min_gap: float) -> tuple[list[dict], dict]:
+    days = _photo_days(photos)
+    if days is None or len(set(days)) < 2:
+        if days is None:
+            term.detail("日期章节未启用: EXIF 时间不完整或无效")
+        return clips, {"enabled": False, "day_count": len(set(days or [])), "card_count": 0}
+    day_number = {day: index + 1 for index, day in enumerate(dict.fromkeys(days))}
+    cards: list[dict] = []
+    for index in range(1, len(clips)):
+        if days[index] == days[index - 1]:
+            continue
+        boundary = clips[index]["start"]
+        before = clips[index - 1]
+        after = clips[index]
+        prior = [beat for beat in beats if before["start"] + min_gap <= beat < boundary and 1 <= boundary - beat <= 3]
+        later = [beat for beat in beats if boundary < beat <= after["end"] - min_gap and 1 <= beat - boundary <= 3]
+        if prior:
+            cut = min(prior, key=lambda beat: abs(beat - (boundary - 2)))
+            before["end"] = round(cut, 3)
+            start, end = cut, boundary
+        elif later:
+            cut = min(later, key=lambda beat: abs(beat - (boundary + 2)))
+            after["start"] = round(cut, 3)
+            start, end = boundary, cut
+        else:
+            term.detail(f"日期章节跳过: {days[index]} 两侧照片时长不足")
+            continue
+        month, day = (int(part) for part in days[index].split("-")[1:])
+        ordinal = day_number[days[index]]
+        cards.append({"kind": "chapter", "text": f"{month}月{day}日 · 第{ordinal}天 {CHAPTER_SYMBOLS[(ordinal - 1) % len(CHAPTER_SYMBOLS)]}", "start": round(start, 3), "end": round(end, 3)})
+    merged = sorted([*clips, *cards], key=lambda clip: (clip["start"], clip.get("kind") == "chapter"))
+    return merged, {"enabled": bool(cards), "day_count": len(day_number), "card_count": len(cards)}
 
 
 def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
@@ -310,12 +366,17 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
     clips = []
     for i, p in enumerate(photos):
         clips.append({
+            "kind": "photo",
             "src": f"./{p.relative_to(folder)}",
             "start": round(bounds[i], 3),
             "end": round(bounds[i + 1], 3),
             "transition": {"type": "none", "duration": 0} if i == 0 else dict(later_transition),
             "motion": dict(motion),
         })
+
+    chapter_meta = {"enabled": False, "day_count": 0, "card_count": 0}
+    if cfg["chapters"]:
+        clips, chapter_meta = _insert_chapters(clips, photos, [float(beat) for beat in candidates], min_gap)
 
     explicit_branding = cfg.get("_explicit_branding", set())
     branding: dict = {}
@@ -341,6 +402,7 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
             "full_duration": round(full_duration, 3),
             "trimmed_duration": round(duration, 3),
         },
+        "chapters": chapter_meta,
     }
     if branding:
         meta["branding"] = branding
@@ -437,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_status(args.status_output, "generated")
-    n = len(timeline["photos"])
+    n = sum(clip.get("kind") == "photo" for clip in timeline["photos"])
     term.detail(
         f"plan: {n} photos / {timeline['meta']['duration']}s "
         f"(平均每张 {timeline['meta']['duration'] / n:.1f}s, 字幕 {len(lyrics)} 行)"

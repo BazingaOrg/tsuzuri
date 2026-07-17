@@ -396,7 +396,7 @@ test(
           'const runCommandImpl = (_label, _command, args) => {\n' +
           '  calls.push(args);\n' +
           '  if (args.includes("tsuzuri-analyze")) { fs.mkdirSync(new URL(`file://${after(args, "-o")}`).pathname.replace(/\\/[^/]+$/, ""), {recursive:true}); fs.writeFileSync(after(args, "-o"), "{\\"version\\":1}"); fs.writeFileSync(after(args, "--lyrics-output"), "{\\"version\\":1,\\"segments\\":[]}"); }\n' +
-          '  if (args.includes("tsuzuri-plan")) { const out = after(args, "-o"); fs.mkdirSync(new URL(`file://${out}`).pathname.replace(/\\/[^/]+$/, ""), {recursive:true}); fs.writeFileSync(out, JSON.stringify({meta:{duration:24,audio:"./song.mp3",trim:{mode:"auto",applied:true,trimmed_duration:24}},photos:[{}],subtitles:[]})); fs.writeFileSync(after(args, "--status-output"), JSON.stringify({outcome:"generated"})); }\n' +
+          '  if (args.includes("tsuzuri-plan")) { const out = after(args, "-o"); fs.mkdirSync(new URL(`file://${out}`).pathname.replace(/\\/[^/]+$/, ""), {recursive:true}); fs.writeFileSync(out, JSON.stringify({meta:{duration:24,audio:"./song.mp3",trim:{mode:"auto",applied:true,trimmed_duration:24}},photos:[{src:"./photo.jpg"},{kind:"chapter",text:"第2天",start:2,end:4,src:"./chapter.jpg"},{kind:"future",src:"./future.jpg"}],subtitles:[]})); fs.writeFileSync(after(args, "--status-output"), JSON.stringify({outcome:"generated"})); }\n' +
           '  return args.includes("render.mjs") ? 1 : 0;\n' +
           '};\n' +
           'try { await runCommandFromArgv([folder, ...cli], {trimInteractive: choice !== "none", trimPromptRunner: async (run) => run({pick: async () => ({index: choice === "full" ? 1 : 0})}), runCommandImpl}); } catch (error) { calls.push(["error", error.message]); }\n' +
@@ -430,6 +430,7 @@ test(
       assert.deepEqual(run({name: 'accept-auto', choice: 'auto'}).plannerCalls.map(trimArg), [null]);
       const full = run({name: 'choose-full', choice: 'full'});
       assert.deepEqual(full.plannerCalls.map(trimArg), [null, 'full']);
+      assert.match(full.stdout, /照片: 1 张,平均每张 24\.0s/);
       assert.match(full.stdout, /└ 已按完整歌曲重新规划/);
       assert.match(full.stdout, /● 已记住你的选择/);
       assert.doesNotMatch(full.stdout, /按裁剪选择重新规划照片时间线/);
