@@ -109,6 +109,22 @@ def test_seconds_shorter_than_photo_constraints_drops_photos_with_warning(
     assert "时长塞不下全部照片,丢弃末尾 1 张" in capsys.readouterr().err
 
 
+def test_dynamic_pacing_does_not_drop_photos_when_uniform_fits(tmp_path: Path, capsys):
+    make_photos(tmp_path, 12)
+    beats = make_beats(29.301, downbeats=[])
+    beats["beats"] = [2.315, 3.008, 3.723, 4.416, 5.109, 5.792, 6.496, 7.189, 7.872, 8.565, 9.259, 9.941, 10.624, 11.317, 12.011, 12.715, 13.365, 14.101, 14.784, 15.477, 16.171, 16.853, 17.547, 18.240, 18.923, 19.627, 20.320, 21.013, 21.696, 22.400, 23.083, 23.776, 24.459, 25.163, 25.856, 26.539, 27.232, 27.925, 28.608, 29.301]
+    beats["downbeats"] = [4.416, 7.189, 9.941, 12.715, 15.477, 18.240, 21.013, 23.776, 26.539]
+    beats["energy"] = [0.0] * 16 + [0.464, 0.455, 0.638, 0.450, 0.467, 0.470, 0.512, 0.462, 0.813, 0.786, 0.787, 0.738, 0.681, 0.784, 0.787, 0.668, 0.697, 0.705, 0.723, 0.698, 0.663, 0.582, 0.866, 0.541]
+    beats["first_strong_onset"] = 2.304
+    base = {**plan.DEFAULTS, "trim": "full"}
+
+    uniform = plan.build_timeline(tmp_path, beats, [], {**base, "pacing": "uniform"}, None)
+    dynamic = plan.build_timeline(tmp_path, beats, [], {**base, "pacing": "dynamic"}, None)
+
+    assert len(uniform["photos"]) == len(dynamic["photos"]) == 12
+    assert "丢弃末尾" not in capsys.readouterr().err
+
+
 def test_missing_legal_trim_candidate_is_reported(tmp_path: Path, capsys):
     make_photos(tmp_path)
     timeline = plan.build_timeline(

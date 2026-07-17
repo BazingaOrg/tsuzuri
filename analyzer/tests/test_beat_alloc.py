@@ -103,6 +103,26 @@ class TestFallback:
         assert all(t < 10.0 for t in result)
         assert min_gap_of(result, 10.0) >= 2.0 - 1e-9
 
+    def test_reserves_capacity_for_late_dynamic_ideals(self):
+        # Yellow 前 29.301s 脱敏后的真实形状：非空重拍候选会将早期 dynamic
+        # 槽位吸附到 7.189s。旧实现随后挤占尾部，容量 cap 应保留全部照片。
+        duration = 29.301
+        n_photos = 12
+        ideals = [6.138, 9.275, 12.413, 14.901, 17.030, 19.133, 20.711, 22.426, 24.059, 25.837, 27.600]
+        candidates = [4.416, 7.189, 9.941, 12.715, 15.477, 18.240, 21.013, 23.776, 26.539]
+        result = allocate_switch_points(
+            duration, n_photos, candidates, min_gap=2.0, not_before=3.2,
+            head_offset=3.0, not_after=28.051, ideal_points=ideals,
+        )
+        assert len(result) == n_photos - 1
+        assert result[0] == pytest.approx(7.189)  # 确认候选吸附实际发生
+        assert all(0.0 <= point <= duration for point in ideals)
+        assert min_gap_of(result, duration) >= 2.0 - 1e-9
+        assert all(
+            point <= duration - (n_photos - 1 - index) * 2.0 + 1e-9
+            for index, point in enumerate(result)
+        )
+
     def test_duration_shorter_than_two_gaps_drops_switch(self):
         # 3s 放不下任何满足 min_gap=2 的切换点:宁可少切,不违反约束
         assert allocate_switch_points(3.0, 2, [], min_gap=2.0) == []

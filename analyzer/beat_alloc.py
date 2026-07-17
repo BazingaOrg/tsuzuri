@@ -129,6 +129,8 @@ def allocate_switch_points(
         raise ValueError("ideal_points length must be n_photos - 1")
     last_idx = len(grid) - 1
     upper = max(grid[last_idx], not_after) if not_after is not None else None
+    first_lower = max(min_gap, not_before)
+    reserve_capacity = first_lower <= duration - (n_photos - 1) * min_gap + 1e-9
 
     result: list[float] = []
     prev = 0.0
@@ -136,7 +138,19 @@ def allocate_switch_points(
 
     for i, ideal in enumerate(grid):
         lower = max(prev + min_gap if result else max(min_gap, not_before), not_before)
-        cap = upper if i == last_idx else None
+        # 为后续每个切换点及最后一张照片各预留一个 min_gap。仅逐点校验
+        # lower 会让动态网格在前段吸附过晚，之后即使尚有总时长也无法补回点数。
+        if reserve_capacity:
+            remaining_gaps = n_photos - 1 - i
+            capacity_cap = duration - remaining_gaps * min_gap
+            if lower > capacity_cap + 1e-9:
+                break
+            cap = capacity_cap
+            # 片尾预留是软约束：若与 min_gap 下界冲突，仍让 min_gap 胜出。
+            if i == last_idx and upper is not None and upper >= lower:
+                cap = min(cap, upper)
+        else:
+            cap = upper if i == last_idx else None
         # 候选区间起点:第一个 >= lower 且未被占用的候选
         start = max(bisect_left(usable, lower), used_idx + 1)
         best = None
@@ -155,12 +169,10 @@ def allocate_switch_points(
             used_idx = best
             prev = usable[best]
         else:
-            # 候选耗尽:回退到未吸附时间,尽量贴近理想网格。
-            # lower 保证与前点间隔 >= min_gap;超出尾部空间则停止分配,
-            # 剩余照片由 plan 层丢弃(所有约束优先于数量)。
+            # 候选耗尽:回退到未吸附时间,同时保留后续切换和尾图的容量。
             t = max(ideal, lower)
             if cap is not None:
-                t = max(lower, min(t, cap))  # min_gap(经 lower)永远优先于尾部软上界
+                t = max(lower, min(t, cap))
             if t > duration - min_gap:
                 break
             result.append(t)
