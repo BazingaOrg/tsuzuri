@@ -1,6 +1,6 @@
 # timeline.json Schema v1
 
-`timeline.json` 是 Python analyzer/planner 与 Remotion renderer 之间的阶段契约。`photos` 和 `subtitles` 是相互独立的时间线。
+`output/metadata/timeline.json` 是 Python analyzer/planner 与 Remotion renderer 之间的阶段契约。`photos` 和 `subtitles` 是相互独立的时间线。
 
 字段变更时应同步更新本文档、planner 输出和 renderer 类型。
 

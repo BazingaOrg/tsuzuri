@@ -22,7 +22,10 @@ import {
   readAnalysisFingerprint,
   writeAnalysisManifest,
 } from './analysis-cache.mjs';
-import {computeInputHash, copyLegacyJson, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
+import {
+  computeInputHash, copyLegacyJson, copyLegacyMetadata, ensureProjectDirs, hasExplicitTrimConfig,
+  readTrimPreference, resolveProjectPaths, scanFolder,
+} from './project.mjs';
 import {runDoctor} from './doctor.mjs';
 import {offerFetch, runFetch} from './fetch.mjs';
 import {runLyrics} from './lyrics.mjs';
@@ -88,7 +91,10 @@ const normalizeLoudness = (file) => {
   term.detail(`${measured.toFixed(1)} → ${TARGET_LUFS} LUFS(真峰值 ≤ ${TARGET_TP}dB)`);
 };
 
-export const runCommandFromArgv = async (argv) => {
+export const runCommandFromArgv = async (
+  argv,
+  {trimInteractive, trimPromptRunner, runCommandImpl = runCommand} = {},
+) => {
   const parsed = parseArgs(argv);
   if (parsed.command === 'help') {
     console.log(USAGE);
@@ -128,10 +134,14 @@ export const runCommandFromArgv = async (argv) => {
   const variantSuffix = `${exif ? '-exif' : ''}${sign ? '-sign' : ''}${dark ? '-dark' : ''}${draft ? '-draft' : ''}`;
   const project = resolveProjectPaths(folder, output, variantSuffix);
   ensureProjectDirs(project);
+  if (copyLegacyMetadata(folder, project.metadataDir)) {
+    term.warn('已复制旧版 metadata/ 到 output/metadata/(原目录保留)');
+  }
   const copied = copyLegacyJson(folder, project.metadataDir);
   if (copied.length > 0) {
-    term.warn(`已复制旧版 JSON 到 metadata/: ${copied.join(', ')}(原文件保留)`);
+    term.warn(`已复制旧版 JSON 到 output/metadata/: ${copied.join(', ')}(原文件保留)`);
   }
+  const effectiveTrim = trim ?? (hasExplicitTrimConfig(folder) ? null : readTrimPreference(project.preferencesPath));
 
   const inputFiles = () => {
     const files = [audio, ...photos];
@@ -162,7 +172,7 @@ export const runCommandFromArgv = async (argv) => {
       '--lyrics-output', project.lyricsPath,
     ];
     if (lyrics) analyzeArgs.push('--lyrics-file', path.join(folder, lyrics));
-    const code = runCommand('分析音频', 'uv', analyzeArgs);
+    const code = runCommandImpl('分析音频', 'uv', analyzeArgs);
     if (code !== 0) return code;
     writeAnalysisManifest({
       analysisPath: project.analysisPath,
@@ -177,7 +187,7 @@ export const runCommandFromArgv = async (argv) => {
   // 交给 plan.py 自己判断——它靠内容校验和识别文件是否被手动改过,手改过就
   // 原样保留,没被动过就悄悄升级到最新分配算法(见 plan.py _content_checksum)
   term.start('规划照片时间线');
-  const runPlan = (inputHash, trimOverride = trim) => {
+  const runPlan = (inputHash, trimOverride = effectiveTrim) => {
     const statusPath = path.join(os.tmpdir(), `tsuzuri-plan-${randomUUID()}.json`);
     const args = [
       'run', '--project', analyzer, 'tsuzuri-plan', folder,
@@ -189,7 +199,7 @@ export const runCommandFromArgv = async (argv) => {
     ];
     if (trimOverride !== null) args.push('--trim', trimOverride);
     try {
-      const code = runCommand('规划照片时间线', 'uv', args);
+      const code = runCommandImpl('规划照片时间线', 'uv', args);
       let outcome = null;
       if (fs.existsSync(statusPath)) {
         outcome = JSON.parse(fs.readFileSync(statusPath, 'utf8')).outcome ?? null;
@@ -205,14 +215,15 @@ export const runCommandFromArgv = async (argv) => {
 
   let tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   const trimChoice = await maybePersistTrimChoice({
-    folder, timeline: tl, trimOverride: trim, planOutcome,
+    folder, preferencesPath: project.preferencesPath, timeline: tl, trimOverride: trim, planOutcome,
+    ...(trimInteractive === undefined ? {} : {interactive: trimInteractive}),
+    ...(trimPromptRunner === undefined ? {} : {promptRunner: trimPromptRunner}),
   });
-  if (trimChoice !== null) {
-    hash = computeInputHash(folder, inputFiles());
+  if (trimChoice === 'full') {
     term.start('按裁剪选择重新规划照片时间线');
-    const {code: replanCode} = runPlan(hash, null);
+    const {code: replanCode} = runPlan(hash, 'full');
     if (replanCode !== 0) return replanCode;
-    term.success('裁剪选择已保存到 tsuzuri.toml');
+    term.success('裁剪选择已保存到偏好设置');
     tl = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
   }
   const n = tl.photos.length;
@@ -228,7 +239,7 @@ export const runCommandFromArgv = async (argv) => {
   if (!fs.existsSync(rendererPackage)) throw new CliError('渲染器依赖未安装,先执行: cd renderer && npm install');
 
   term.start(`渲染视频${exif ? ', EXIF' : ''}${sign ? ', 签名' : ''}${dark ? ', 黑底' : ''}${draft ? ', 草稿' : ''}`);
-  const renderCode = runCommand('渲染视频', process.execPath, [
+  const renderCode = runCommandImpl('渲染视频', process.execPath, [
     path.join(REPO, 'cli', 'render.mjs'),
     timelinePath,
     outPath,

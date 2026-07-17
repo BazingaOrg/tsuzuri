@@ -4,7 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import {hasExplicitTrimConfig, scanFolder, scanFolderLoose, writeTrimConfig} from './project.mjs';
+import {
+  copyLegacyJson, copyLegacyMetadata, ensureProjectDirs, hasExplicitTrimConfig, readTrimPreference,
+  resolveProjectPaths, scanFolder, scanFolderLoose, writeTrimPreference,
+} from './project.mjs';
 
 const makeFolder = (files) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tsuzuri-scan-'));
@@ -70,28 +73,43 @@ test('root and audio/ files are counted together without a silent priority', () 
   }
 });
 
-test('writeTrimConfig creates a minimal config and detects the explicit key', () => {
+test('trim preferences accept only version 1 auto or full values', () => {
   const dir = makeFolder([]);
   try {
     assert.equal(hasExplicitTrimConfig(dir), false);
-    writeTrimConfig(dir, 'auto');
-    assert.equal(fs.readFileSync(path.join(dir, 'tsuzuri.toml'), 'utf8'), 'trim = "auto"\n');
-    assert.equal(hasExplicitTrimConfig(dir), true);
+    const preferencesPath = resolveProjectPaths(dir).preferencesPath;
+    assert.equal(readTrimPreference(preferencesPath), null);
+    writeTrimPreference(preferencesPath, 'auto');
+    assert.deepEqual(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')), {version: 1, trim: 'auto'});
+    assert.equal(readTrimPreference(preferencesPath), 'auto');
+    fs.writeFileSync(preferencesPath, JSON.stringify({version: 2, trim: 'full'}));
+    assert.equal(readTrimPreference(preferencesPath), null);
+    fs.writeFileSync(preferencesPath, JSON.stringify({version: 1, trim: 'seconds'}));
+    assert.equal(readTrimPreference(preferencesPath), null);
   } finally {
     fs.rmSync(dir, {recursive: true, force: true});
   }
 });
 
-test('writeTrimConfig replaces only the active line and preserves comments', () => {
+test('legacy metadata is copied only into an empty new directory, then root JSON fills gaps', () => {
   const dir = makeFolder([]);
-  const config = '# trim = "auto"\r\nfps = 30\r\ntrim = "auto" # keep this\r\n';
-  fs.writeFileSync(path.join(dir, 'tsuzuri.toml'), config);
   try {
-    writeTrimConfig(dir, 'full');
-    assert.equal(
-      fs.readFileSync(path.join(dir, 'tsuzuri.toml'), 'utf8'),
-      '# trim = "auto"\r\nfps = 30\r\ntrim = "full" # keep this\r\n',
-    );
+    const paths = resolveProjectPaths(dir);
+    fs.mkdirSync(path.join(dir, 'metadata'));
+    fs.writeFileSync(path.join(dir, 'metadata', 'analysis.json'), 'old analysis');
+    fs.mkdirSync(path.join(dir, 'metadata', 'nested'));
+    fs.writeFileSync(path.join(dir, 'metadata', 'nested', 'note.txt'), 'old note');
+    fs.writeFileSync(path.join(dir, 'beats.json'), 'root beats');
+    fs.writeFileSync(path.join(dir, 'timeline.json'), 'root timeline');
+    ensureProjectDirs(paths);
+    assert.equal(copyLegacyMetadata(dir, paths.metadataDir), true);
+    assert.equal(fs.readFileSync(paths.analysisPath, 'utf8'), 'old analysis');
+    assert.equal(fs.readFileSync(path.join(paths.metadataDir, 'nested', 'note.txt'), 'utf8'), 'old note');
+    assert.deepEqual(copyLegacyJson(dir, paths.metadataDir), ['beats.json', 'timeline.json']);
+    assert.equal(copyLegacyMetadata(dir, paths.metadataDir), false);
+    fs.writeFileSync(path.join(dir, 'metadata', 'lyrics.json'), 'old lyrics');
+    assert.equal(copyLegacyMetadata(dir, paths.metadataDir), false);
+    assert.equal(fs.existsSync(paths.lyricsPath), false);
   } finally {
     fs.rmSync(dir, {recursive: true, force: true});
   }

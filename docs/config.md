@@ -28,10 +28,11 @@
 | `trim_avg_threshold` | `10.0` | `trim = "auto"` 时，平均每张展示超过此值才裁短歌曲 |
 | `trim_target_avg` | `8.0` | `trim = "auto"` 时，裁歌后的目标平均每张展示时长（秒） |
 
-首次触发自动裁剪时，交互终端会询问接受裁剪还是播放完整首歌，并把选择写回
-`tsuzuri.toml`，之后不再重复询问。管道和脚本保持自动行为、不进入问答。
+首次触发自动裁剪时，交互终端会询问接受裁剪还是播放完整首歌，并将选择写入
+`output/metadata/preferences.json`，之后不再重复询问；程序不会改写 `tsuzuri.toml`。优先级为
+`--trim`、`tsuzuri.toml` 的 `trim`、已保存偏好、默认 `auto`。管道和脚本保持自动行为、不进入问答。
 
-命令行 `--trim auto|full|秒数` 可仅覆盖本次运行，不修改 `tsuzuri.toml`；例如：
+命令行 `--trim auto|full|秒数` 可仅覆盖本次运行；例如：
 
 ```bash
 tsuzuri ./osaka-trip --trim full

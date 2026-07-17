@@ -39,10 +39,10 @@ tsuzuri 已具备完整的本地视频管线：读取照片、唯一音频和可
                               ↓
 照片 + 音频 + 可选 LRC
         ↓
-Analyze → Plan → metadata/timeline.json → Render → output/*.mp4
+Analyze → Plan → output/metadata/timeline.json → Render → output/*.mp4
 ```
 
-三个阶段通过 `metadata/` 下的 JSON 文件衔接。`analysis.json` 记录只覆盖音频、LRC、demucs
+三个阶段通过 `output/metadata/` 下的 JSON 文件衔接。`analysis.json` 记录只覆盖音频、LRC、demucs
 和当前 Whisper/demucs 运行环境的分析摘要，增删照片不会重复运行节拍与歌词识别；timeline 的 `input_hash`
 仍覆盖全部素材与配置。planner 使用 `plan_checksum` 判断 `timeline.json` 是否被手动修改：
 未修改的旧时间线会按最新算法刷新，手动修改的时间线会被保留。
@@ -56,7 +56,7 @@ Analyze → Plan → metadata/timeline.json → Render → output/*.mp4
 - 照片保持静止，不再使用 Ken Burns motion 字段
 - `timeline.json` 是允许手动编辑的稳定阶段契约
 - 默认输出为 1920×1080、60fps；可通过 `tsuzuri.toml` 调整
-- 默认视频写入素材目录的 `output/`，分析文件写入 `metadata/`
+- 默认视频写入素材目录的 `output/`，分析文件与交互偏好写入 `output/metadata/`；旧 `metadata/` 首次运行时会复制保留
 - `fetch` 新音频和 LRC 写入 `audio/`；用户自备文件也可继续放在素材根目录
 
 ## 待验证与已知限制

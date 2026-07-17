@@ -113,8 +113,8 @@ def test_missing_legal_trim_candidate_is_reported(tmp_path: Path, capsys):
 
 def test_main_trim_override_wins_over_toml(tmp_path: Path):
     make_photos(tmp_path)
-    metadata = tmp_path / "metadata"
-    metadata.mkdir()
+    metadata = tmp_path / "output" / "metadata"
+    metadata.mkdir(parents=True)
     (metadata / "beats.json").write_text(json.dumps(make_beats()), encoding="utf-8")
     (tmp_path / "tsuzuri.toml").write_text('trim = "auto"\n', encoding="utf-8")
 
@@ -126,8 +126,8 @@ def test_main_trim_override_wins_over_toml(tmp_path: Path):
 
 def test_main_status_distinguishes_generated_from_preserved_hand_edit(tmp_path: Path):
     make_photos(tmp_path)
-    metadata = tmp_path / "metadata"
-    metadata.mkdir()
+    metadata = tmp_path / "output" / "metadata"
+    metadata.mkdir(parents=True)
     (metadata / "beats.json").write_text(json.dumps(make_beats()), encoding="utf-8")
     status = tmp_path / "plan-status.json"
     args = [str(tmp_path), "--input-hash", "same", "--status-output", str(status)]

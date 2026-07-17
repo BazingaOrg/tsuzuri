@@ -152,11 +152,12 @@ test('redirected render progress emits bar and percentage milestones', () => {
 test('project paths separate generated JSON and video output', () => {
   const paths = resolveProjectPaths('/tmp/summer-album');
 
-  assert.equal(paths.metadataDir, '/tmp/summer-album/metadata');
-  assert.equal(paths.beatsPath, '/tmp/summer-album/metadata/beats.json');
-  assert.equal(paths.lyricsPath, '/tmp/summer-album/metadata/lyrics.json');
-  assert.equal(paths.analysisPath, '/tmp/summer-album/metadata/analysis.json');
-  assert.equal(paths.timelinePath, '/tmp/summer-album/metadata/timeline.json');
+  assert.equal(paths.metadataDir, '/tmp/summer-album/output/metadata');
+  assert.equal(paths.beatsPath, '/tmp/summer-album/output/metadata/beats.json');
+  assert.equal(paths.lyricsPath, '/tmp/summer-album/output/metadata/lyrics.json');
+  assert.equal(paths.analysisPath, '/tmp/summer-album/output/metadata/analysis.json');
+  assert.equal(paths.timelinePath, '/tmp/summer-album/output/metadata/timeline.json');
+  assert.equal(paths.preferencesPath, '/tmp/summer-album/output/metadata/preferences.json');
   assert.equal(paths.outputPath, '/tmp/summer-album/output/summer-album.mp4');
   assert.equal(resolveProjectPaths('/tmp/summer-album', './film.mp4').outputPath, join(process.cwd(), 'film.mp4'));
 });
@@ -293,9 +294,9 @@ test(
 
       assert.equal(result.status, 7);
       assert.match(forwarded, /--lyrics-file\n.*lyrics\.lrc/);
-      assert.match(forwarded, /-o\n.*metadata\/beats\.json/);
-      assert.match(forwarded, /--lyrics-output\n.*metadata\/lyrics\.json/);
-      assert.ok(existsSync(join(album, 'metadata')));
+      assert.match(forwarded, /-o\n.*output\/metadata\/beats\.json/);
+      assert.match(forwarded, /--lyrics-output\n.*output\/metadata\/lyrics\.json/);
+      assert.ok(existsSync(join(album, 'output', 'metadata')));
       assert.ok(existsSync(join(album, 'output')));
     } finally {
       rmSync(root, {recursive: true, force: true});
@@ -349,7 +350,7 @@ test(
       const legacy = run();
       assert.equal(legacy.status, 7);
       assert.deepEqual(readPipelineCalls().map((args) => args.includes('tsuzuri-analyze')), [true, false]);
-      assert.ok(existsSync(join(album, 'metadata', 'analysis.json')));
+      assert.ok(existsSync(join(album, 'output', 'metadata', 'analysis.json')));
 
       writeFileSync(calls, '');
       writeFileSync(join(album, 'photo-2.jpg'), 'photo 2');
@@ -363,6 +364,73 @@ test(
       const audioChanged = run();
       assert.equal(audioChanged.status, 7);
       assert.deepEqual(readPipelineCalls().map((args) => args.includes('tsuzuri-analyze')), [true, false]);
+    } finally {
+      rmSync(root, {recursive: true, force: true});
+    }
+  },
+);
+
+test(
+  'CLI trim precedence and choices pass the intended planner overrides',
+  {skip: process.platform === 'win32'},
+  () => {
+    const root = mkdtempSync(join(tmpdir(), 'tsuzuri-trim-cli-'));
+    try {
+      const bin = join(root, 'bin');
+      const callsPath = join(root, 'calls.json');
+      const runner = join(root, 'run-trim.mjs');
+      mkdirSync(bin);
+      writeFileSync(
+        join(bin, 'uv'),
+        '#!/usr/bin/env node\n' +
+          'if (process.argv.includes("tsuzuri-analysis-fingerprint")) console.log("{\\"version\\":1,\\"backend\\":\\"cpu\\",\\"model\\":\\"small\\",\\"demucs_available\\":false}");\n',
+      );
+      chmodSync(join(bin, 'uv'), 0o755);
+      writeFileSync(
+        runner,
+        'import fs from "node:fs";\n' +
+          'const [modulePath, folder, choice, callsPath, ...cli] = process.argv.slice(2);\n' +
+          'const {runCommandFromArgv} = await import(modulePath);\n' +
+          'const calls = [];\n' +
+          'const after = (args, flag) => args[args.indexOf(flag) + 1];\n' +
+          'const runCommandImpl = (_label, _command, args) => {\n' +
+          '  calls.push(args);\n' +
+          '  if (args.includes("tsuzuri-analyze")) { fs.mkdirSync(new URL(`file://${after(args, "-o")}`).pathname.replace(/\\/[^/]+$/, ""), {recursive:true}); fs.writeFileSync(after(args, "-o"), "{\\"version\\":1}"); fs.writeFileSync(after(args, "--lyrics-output"), "{\\"version\\":1,\\"segments\\":[]}"); }\n' +
+          '  if (args.includes("tsuzuri-plan")) { const out = after(args, "-o"); fs.mkdirSync(new URL(`file://${out}`).pathname.replace(/\\/[^/]+$/, ""), {recursive:true}); fs.writeFileSync(out, JSON.stringify({meta:{duration:24,audio:"./song.mp3",trim:{mode:"auto",applied:true,trimmed_duration:24}},photos:[{}],subtitles:[]})); fs.writeFileSync(after(args, "--status-output"), JSON.stringify({outcome:"generated"})); }\n' +
+          '  return args.includes("render.mjs") ? 1 : 0;\n' +
+          '};\n' +
+          'try { await runCommandFromArgv([folder, ...cli], {trimInteractive: choice !== "none", trimPromptRunner: async (run) => run({pick: async () => ({index: choice === "full" ? 1 : 0})}), runCommandImpl}); } catch (error) { calls.push(["error", error.message]); }\n' +
+          'fs.writeFileSync(callsPath, JSON.stringify(calls));\n',
+      );
+      const script = fileURLToPath(new URL('./tsuzuri.mjs', import.meta.url));
+      const run = ({name, toml, preference, cli = [], choice = 'none'}) => {
+        const album = join(root, name);
+        mkdirSync(album);
+        writeFileSync(join(album, 'photo.jpg'), 'photo');
+        writeFileSync(join(album, 'song.mp3'), 'audio');
+        if (toml) writeFileSync(join(album, 'tsuzuri.toml'), toml);
+        if (preference) {
+          mkdirSync(join(album, 'output', 'metadata'), {recursive: true});
+          writeFileSync(join(album, 'output', 'metadata', 'preferences.json'), JSON.stringify({version: 1, trim: preference}));
+        }
+        const result = spawnSync(process.execPath, [runner, script, album, choice, callsPath, ...cli], {
+          encoding: 'utf8', env: {...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`},
+        });
+        assert.equal(result.status, 0, result.stderr);
+        const calls = JSON.parse(readFileSync(callsPath, 'utf8'));
+        assert.ok(calls.some((args) => args.includes('tsuzuri-plan')), JSON.stringify(calls));
+        return calls.filter((args) => args.includes('tsuzuri-plan'));
+      };
+      const trimArg = (args) => args.includes('--trim') ? args[args.indexOf('--trim') + 1] : null;
+
+      assert.deepEqual(run({name: 'default'}).map(trimArg), [null]);
+      assert.deepEqual(run({name: 'preference', preference: 'full'}).map(trimArg), ['full']);
+      assert.deepEqual(run({name: 'toml', toml: 'trim = "full"\n', preference: 'auto'}).map(trimArg), [null]);
+      assert.deepEqual(run({name: 'cli', toml: 'trim = "full"\n', preference: 'full', cli: ['--trim', 'auto']}).map(trimArg), ['auto']);
+      assert.deepEqual(run({name: 'accept-auto', choice: 'auto'}).map(trimArg), [null]);
+      assert.deepEqual(run({name: 'choose-full', choice: 'full'}).map(trimArg), [null, 'full']);
+      assert.equal(existsSync(join(root, 'accept-auto', 'tsuzuri.toml')), false);
+      assert.equal(existsSync(join(root, 'choose-full', 'tsuzuri.toml')), false);
     } finally {
       rmSync(root, {recursive: true, force: true});
     }

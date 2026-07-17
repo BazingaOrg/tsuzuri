@@ -1,10 +1,11 @@
-import {hasExplicitTrimConfig, writeTrimConfig} from './project.mjs';
+import {hasExplicitTrimConfig, readTrimPreference, resolveProjectPaths, writeTrimPreference} from './project.mjs';
 import {withPrompts} from './prompts.mjs';
 
 /** 仅首次自动裁剪且处于交互终端时询问，并把答案持久化。 */
 export const maybePersistTrimChoice = async (
   {
     folder,
+    preferencesPath = resolveProjectPaths(folder).preferencesPath,
     timeline,
     trimOverride = null,
     planOutcome = 'generated',
@@ -18,6 +19,7 @@ export const maybePersistTrimChoice = async (
     || planOutcome !== 'generated'
     || trimOverride !== null
     || hasExplicitTrimConfig(folder)
+    || readTrimPreference(preferencesPath) !== null
     || trim?.mode !== 'auto'
     || trim?.applied !== true
   ) {
@@ -32,6 +34,6 @@ export const maybePersistTrimChoice = async (
     {allowBack: false, defaultIndex: 0, enterLabel: '接受裁剪'},
   ));
   const value = picked?.index === 1 ? 'full' : 'auto';
-  writeTrimConfig(folder, value);
+  writeTrimPreference(preferencesPath, value);
   return value;
 };

@@ -114,7 +114,7 @@ downloads it again. Only interactive terminals offer online preparation—pipes 
 
 Add `tsuzuri.toml` to the media folder to adjust resolution, frame rate, transitions, subtitles, background, intro, and outro.
 
-Analysis output lives under `metadata/`. When the media is unchanged, edit `metadata/timeline.json` and rerun: tsuzuri preserves the hand-edited timeline and skips repeated analysis.
+All generated files live under `output/`: videos at its root and analysis plus preferences in `output/metadata/`. Existing projects copy their old `metadata/` on the first run without deleting it. When the media is unchanged, edit `output/metadata/timeline.json` and rerun: tsuzuri preserves the hand-edited timeline and skips repeated analysis.
 
 Analysis and rendering stay local and require no API key. Whisper selects an Apple Silicon, NVIDIA CUDA, or CPU backend automatically; its model is downloaded only on first use.
 

@@ -5,7 +5,7 @@ import path from 'node:path';
 import {CliError} from './options.mjs';
 import {formatEquivalentCommand} from './menu.mjs';
 
-const LEGACY_JSON = ['beats.json', 'lyrics.json', 'timeline.json'];
+const LEGACY_JSON = ['beats.json', 'lyrics.json', 'analysis.json', 'timeline.json'];
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.wav', '.flac', '.aac', '.ogg']);
 const LYRIC_EXTS = new Set(['.lrc']);
@@ -66,14 +66,15 @@ export const scanFolder = (folder, {requirePhotos = true} = {}) => {
  * 文件名,避免变体覆盖普通版;`-o` 显式指定时用户说了算,不加后缀。
  */
 export const resolveProjectPaths = (folder, output = null, outputSuffix = '') => {
-  const metadataDir = path.join(folder, 'metadata');
   const defaultOutputDir = path.join(folder, 'output');
+  const metadataDir = path.join(defaultOutputDir, 'metadata');
   return {
     metadataDir,
     beatsPath: path.join(metadataDir, 'beats.json'),
     lyricsPath: path.join(metadataDir, 'lyrics.json'),
     analysisPath: path.join(metadataDir, 'analysis.json'),
     timelinePath: path.join(metadataDir, 'timeline.json'),
+    preferencesPath: path.join(metadataDir, 'preferences.json'),
     outputPath: path.resolve(
       output ?? path.join(defaultOutputDir, `${path.basename(folder)}${outputSuffix}.mp4`),
     ),
@@ -99,6 +100,38 @@ export const copyLegacyJson = (folder, metadataDir) => {
   return copied;
 };
 
+/** Copy an older metadata/ directory only into a fresh output/metadata/ directory. */
+export const copyLegacyMetadata = (folder, metadataDir) => {
+  const legacyDir = path.join(folder, 'metadata');
+  if (!fs.existsSync(legacyDir) || !fs.statSync(legacyDir).isDirectory()) return false;
+  if (fs.readdirSync(metadataDir).length > 0) return false;
+  for (const entry of fs.readdirSync(legacyDir)) {
+    fs.cpSync(path.join(legacyDir, entry), path.join(metadataDir, entry), {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+    });
+  }
+  return true;
+};
+
+export const readTrimPreference = (preferencesPath) => {
+  try {
+    const preference = JSON.parse(fs.readFileSync(preferencesPath, 'utf8'));
+    return preference?.version === 1 && ['auto', 'full'].includes(preference.trim)
+      ? preference.trim
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+export const writeTrimPreference = (preferencesPath, value) => {
+  if (!['auto', 'full'].includes(value)) throw new TypeError(`不支持的 trim 偏好: ${value}`);
+  fs.mkdirSync(path.dirname(preferencesPath), {recursive: true});
+  fs.writeFileSync(preferencesPath, `${JSON.stringify({version: 1, trim: value}, null, 2)}\n`, 'utf8');
+};
+
 export const computeInputHash = (folder, files) => {
   const hash = createHash('sha256');
   for (const file of [...files].sort()) {
@@ -114,52 +147,4 @@ export const hasExplicitTrimConfig = (folder) => {
   const tomlPath = path.join(folder, 'tsuzuri.toml');
   if (!fs.existsSync(tomlPath)) return false;
   return fs.readFileSync(tomlPath, 'utf8').split(/\r?\n/).some((line) => trimKeyPattern.test(line));
-};
-
-const trailingTomlComment = (line) => {
-  let quote = null;
-  let escaped = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (quote === '"' && char === '\\') {
-      escaped = true;
-      continue;
-    }
-    if (quote) {
-      if (char === quote) quote = null;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === '#') return line.slice(i);
-  }
-  return '';
-};
-
-/** 文本级写回 trim，避免 TOML 序列化丢掉用户的顺序、空行和注释。 */
-export const writeTrimConfig = (folder, value) => {
-  if (!['auto', 'full'].includes(value)) throw new TypeError(`不支持的 trim 配置: ${value}`);
-  const tomlPath = path.join(folder, 'tsuzuri.toml');
-  const source = fs.existsSync(tomlPath) ? fs.readFileSync(tomlPath, 'utf8') : '';
-  const newline = source.includes('\r\n') ? '\r\n' : '\n';
-  const lines = source.split(/\r?\n/);
-  const index = lines.findIndex((line) => trimKeyPattern.test(line));
-  const configLine = `trim = "${value}"`;
-
-  if (index >= 0) {
-    const indent = lines[index].match(/^\s*/)?.[0] ?? '';
-    const comment = trailingTomlComment(lines[index]);
-    lines[index] = `${indent}${configLine}${comment ? ` ${comment}` : ''}`;
-    fs.writeFileSync(tomlPath, lines.join(newline), 'utf8');
-    return;
-  }
-
-  const prefix = source.length === 0 || source.endsWith('\n') ? source : `${source}${newline}`;
-  fs.writeFileSync(tomlPath, `${prefix}${configLine}${newline}`, 'utf8');
 };

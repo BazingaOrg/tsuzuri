@@ -9,7 +9,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {CliError} from './options.mjs';
-import {ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
+import {copyLegacyJson, copyLegacyMetadata, ensureProjectDirs, resolveProjectPaths, scanFolder} from './project.mjs';
 import {term} from './term.mjs';
 import {runCommand} from './run-command.mjs';
 
@@ -75,6 +75,11 @@ export const runLyrics = (folderArg) => {
   const {audio, lyrics} = scanFolder(folder, {requirePhotos: false});
   const project = resolveProjectPaths(folder);
   ensureProjectDirs(project);
+  if (copyLegacyMetadata(folder, project.metadataDir)) {
+    term.warn('已复制旧版 metadata/ 到 output/metadata/(原目录保留)');
+  }
+  const copied = copyLegacyJson(folder, project.metadataDir);
+  if (copied.length > 0) term.warn(`已复制旧版 JSON 到 output/metadata/: ${copied.join(', ')}(原文件保留)`);
 
   const analyzer = path.join(REPO, 'analyzer');
   term.start('识别歌词');

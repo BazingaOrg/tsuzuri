@@ -169,16 +169,21 @@ def analyze_lyrics(audio_path: Path) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="tsuzuri analyze: audio -> metadata/*.json")
+    parser = argparse.ArgumentParser(description="tsuzuri analyze: audio -> output/metadata/*.json")
     parser.add_argument("audio", type=Path, help="音频文件路径")
     parser.add_argument(
         "-o",
         "--output",
         type=Path,
         default=None,
-        help="beats.json 输出路径(默认 audio_dir/metadata/beats.json)",
+        help="beats.json 输出路径(默认项目 output/metadata/beats.json)",
     )
-    parser.add_argument("--lyrics-output", type=Path, default=None, help="lyrics.json 输出路径")
+    parser.add_argument(
+        "--lyrics-output",
+        type=Path,
+        default=None,
+        help="lyrics.json 输出路径(默认 folder/output/metadata/lyrics.json)",
+    )
     parser.add_argument("--lyrics-file", type=Path, default=None, help="用户提供的单行时间轴 LRC 歌词")
     parser.add_argument("--no-lyrics", action="store_true", help="跳过歌词识别(调试用)")
     parser.add_argument(
@@ -200,12 +205,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.lyrics_only:
         samples, sr = load_audio(args.audio)
         duration = float(librosa.get_duration(y=samples, sr=sr))
-        lyrics_out = args.lyrics_output or args.audio.parent / "metadata" / "lyrics.json"
+        project_root = args.audio.parent.parent if args.audio.parent.name == "audio" else args.audio.parent
+        lyrics_out = args.lyrics_output or project_root / "output" / "metadata" / "lyrics.json"
     else:
         result = analyze_beats(args.audio)
         duration = float(result["duration"])
-        out = args.output or args.audio.parent / "metadata" / "beats.json"
-        project_root = out.parent.parent
+        audio_project_root = args.audio.parent.parent if args.audio.parent.name == "audio" else args.audio.parent
+        out = args.output or audio_project_root / "output" / "metadata" / "beats.json"
+        project_root = out.parent.parent.parent if out.parent.name == "metadata" and out.parent.parent.name == "output" else out.parent.parent
         try:
             result["audio"] = args.audio.resolve().relative_to(project_root.resolve()).as_posix()
         except ValueError:

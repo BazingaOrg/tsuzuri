@@ -54,7 +54,7 @@ def test_main_preserves_nested_audio_path_in_beats(tmp_path: Path, monkeypatch):
     audio_dir.mkdir()
     source = audio_dir / "tone.wav"
     write_tone(source)
-    output = tmp_path / "metadata" / "beats.json"
+    output = tmp_path / "output" / "metadata" / "beats.json"
     monkeypatch.setattr(analyze, "analyze_lyrics", lambda _path: {
         "version": 1, "audio": "tone.wav", "language": "unknown",
         "backend": "test", "segments": [],
@@ -63,6 +63,22 @@ def test_main_preserves_nested_audio_path_in_beats(tmp_path: Path, monkeypatch):
     assert analyze.main([str(source), "-o", str(output)]) == 0
 
     result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["audio"] == "audio/tone.wav"
+
+
+def test_main_defaults_nested_audio_to_output_metadata(tmp_path: Path, monkeypatch):
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir()
+    source = audio_dir / "tone.wav"
+    write_tone(source)
+    monkeypatch.setattr(analyze, "analyze_lyrics", lambda _path: {
+        "version": 1, "audio": "tone.wav", "language": "unknown",
+        "backend": "test", "segments": [],
+    })
+
+    assert analyze.main([str(source)]) == 0
+
+    result = json.loads((tmp_path / "output" / "metadata" / "beats.json").read_text(encoding="utf-8"))
     assert result["audio"] == "audio/tone.wav"
 
 

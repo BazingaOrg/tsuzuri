@@ -360,12 +360,12 @@ def build_timeline(folder: Path, beats: dict, lyrics: list[dict], cfg: dict,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="tsuzuri plan: beats/lyrics -> timeline.json")
     parser.add_argument("folder", type=Path, help="素材文件夹(照片 + 音频)")
-    parser.add_argument("--beats", type=Path, default=None, help="beats.json(默认 folder/metadata/beats.json)")
-    parser.add_argument("--lyrics", type=Path, default=None, help="lyrics.json(默认 folder/metadata/lyrics.json,可选)")
+    parser.add_argument("--beats", type=Path, default=None, help="beats.json(默认 folder/output/metadata/beats.json)")
+    parser.add_argument("--lyrics", type=Path, default=None, help="lyrics.json(默认 folder/output/metadata/lyrics.json,可选)")
     parser.add_argument("--input-hash", default=None, help="输入素材 hash,由 CLI 计算传入")
     parser.add_argument("--trim", type=_parse_trim_arg, default=None, help="本次裁剪模式:auto、full 或正数秒数")
     parser.add_argument("--status-output", type=Path, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("-o", "--output", type=Path, default=None, help="默认 folder/metadata/timeline.json")
+    parser.add_argument("-o", "--output", type=Path, default=None, help="默认 folder/output/metadata/timeline.json")
     args = parser.parse_args(argv)
 
     folder = args.folder.resolve()
@@ -373,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
         term.error(f"不是文件夹: {folder}")
         return 1
 
-    metadata_dir = folder / "metadata"
+    metadata_dir = folder / "output" / "metadata"
     out = args.output or metadata_dir / "timeline.json"
     existing = None
     if out.is_file():
