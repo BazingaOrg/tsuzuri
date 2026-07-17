@@ -285,6 +285,7 @@ export const runInteractiveMenu = async (
       if (argv === null) return 0;
       if (argv === MENU_BACK) {
         output.write('\n返回主菜单\n\n');
+        writeBanner(output);
         continue;
       }
       const code = await commandRunner(argv);
@@ -298,6 +299,7 @@ export const runInteractiveMenu = async (
       onError(error);
     }
     output.write('\n返回主菜单\n\n');
+    writeBanner(output);
   }
 };
 

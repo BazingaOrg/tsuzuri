@@ -22,30 +22,35 @@ test('interactive menu runs consecutive commands until the user exits', async ()
   assert.equal(code, 0);
   assert.deepEqual(commands, [['doctor'], ['lyrics', '/trip']]);
   assert.equal((output.match(/返回主菜单/g) ?? []).length, 2);
+  assert.equal((output.match(/tsuzuri 綴/g) ?? []).length, 2);
 });
 
 test('a command error is reported and does not exit the interactive menu', async () => {
   const choices = [['lyrics', '/missing'], null];
   const errors = [];
+  let output = '';
 
   assert.equal(await runInteractiveMenu({
     menuRunner: async () => choices.shift(),
     commandRunner: async () => { throw new Error('找不到路径'); },
     onError: (error) => errors.push(error.message),
-    output: {write: () => {}},
+    output: {write: (text) => { output += text; }},
   }), 0);
   assert.deepEqual(errors, ['找不到路径']);
+  assert.match(output, /tsuzuri 綴/);
 });
 
 test('back from a menu question redraws the menu without running a command', async () => {
   const choices = [MENU_BACK, null];
   let commandCount = 0;
+  let output = '';
   assert.equal(await runInteractiveMenu({
     menuRunner: async () => choices.shift(),
     commandRunner: async () => { commandCount += 1; },
-    output: {write: () => {}},
+    output: {write: (text) => { output += text; }},
   }), 0);
   assert.equal(commandCount, 0);
+  assert.match(output, /tsuzuri 綴/);
 });
 
 test('q exits the whole interactive menu while Ctrl+C remains an interruption', async () => {
